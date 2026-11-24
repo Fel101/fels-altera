@@ -17,13 +17,25 @@ class VoiceHTTPError(Exception):
 
 
 class VoiceHTTPUnavailable(VoiceHTTPError):
-    def __init__(self):
+    def __init__(self, *, timed_out=False):
         super().__init__('The configured voice service could not be reached.')
+        self.timed_out = timed_out
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
+
+
+JSON_ENDPOINTS = {'/api/info', '/api/health', '/api/voices'}
+AUDIO_ENDPOINTS = {'/api/speak', '/v1/audio/speech'}
+
+
+def is_loopback(url):
+    try:
+        return urlsplit(url).hostname in {'127.0.0.1', 'localhost', '::1'}
+    except ValueError:
+        return False
 
 
 def read(base_url, endpoint, *, timeout, limit, data=None):
@@ -49,10 +61,10 @@ confine what that provider keeps.
             raise ValueError()
     except ValueError:
         raise VoiceHTTPError('Invalid configured voice-service URL.') from None
-    if endpoint not in {'/api/info', '/api/speak'}:
+    if endpoint not in JSON_ENDPOINTS | AUDIO_ENDPOINTS:
         raise VoiceHTTPError('Invalid voice-service endpoint.')
     request = urllib.request.Request(base_url.rstrip('/') + endpoint, data=data,
-        headers={'Accept': 'application/json' if endpoint == '/api/info' else 'audio/wav',
+        headers={'Accept': 'application/json' if endpoint in JSON_ENDPOINTS else 'audio/wav',
                  **({'Content-Type': 'application/json'} if data is not None else {})})
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
     try:
@@ -78,7 +90,7 @@ confine what that provider keeps.
         status = error.code
         error.close()
         raise VoiceHTTPError(f'The configured voice service returned HTTP {status}.', status=status) from None
-    except (urllib.error.URLError, OSError):
-        raise VoiceHTTPUnavailable() from None
+    except (urllib.error.URLError, OSError) as error:
+        raise VoiceHTTPUnavailable(timed_out=isinstance(getattr(error, 'reason', error), TimeoutError)) from None
     except (http.client.HTTPException, ValueError, UnicodeError):
         raise VoiceHTTPError() from None

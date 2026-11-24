@@ -154,6 +154,7 @@ def get_voice_status():
         stt_model_state = model_status(stt_model)
     else:
         stt_model_state = 'not_installed'
+    speech = voice_service.status(tts_cfg, ensure_started=False) if effective_tts_enabled else {'state': 'disabled', 'message': ''}
 
     return jsonify({
         "enabled": stt_available,
@@ -163,10 +164,55 @@ def get_voice_status():
         "stt_available": stt_available,
         "voice_name": tts_module.voice_label(tts_cfg),
         "tts_engine": tts_cfg["engine"],
-        "voice_state": voice_service.status(tts_cfg, ensure_started=False)["state"] if effective_tts_enabled else 'disabled',
+        "voice_state": speech['state'],
+        "voice_message": speech['message'],
         "stt_model": stt_model,
         "stt_model_state": stt_model_state
     })
+
+
+@bp.get('/api/voice/lab')
+def voice_lab_status():
+    """Look for ready Voice Lab voices without starting a speech service."""
+    from core import tts, voicelab
+    cfg = tts.settings()
+    info = voicelab.status(cfg['voicelab']['url'])
+    selected = cfg['engine'] == 'voicelab'
+    if not selected and info['message'] == voicelab.OFFLINE:
+        info['message'] = 'Start Voice Lab to use its voices.'
+    return jsonify({**info, 'selected': selected}), 200, {'Cache-Control': 'no-store'}
+
+
+@bp.post('/api/voice/engine')
+def select_voice_engine():
+    """Select Voice Lab for speech after an explicit action, or switch back to local Kokoro."""
+    import copy
+    from core import tts, voice_service, voicelab
+    from core.config import save_config
+    data = request.get_json(silent=True)
+    engine = data.get('engine') if isinstance(data, dict) else None
+    if engine not in ('voicelab', 'kokoro'):
+        return jsonify(error='Choose Voice Lab or Altera’s Kokoro.'), 400
+    config = copy.deepcopy(get_config())
+    cfg = tts.settings(config)
+    if engine == 'voicelab':
+        lab = voicelab.status(cfg['voicelab']['url'])
+        if not lab['ready']:
+            return jsonify(error=lab['message']), 503
+    elif not voice_service.is_own_local(cfg):
+        return jsonify(error='Choose your configured Kokoro server in config.yaml.'), 400
+
+    voice = config.setdefault('voice', {})
+    voice.update(tts_engine=engine, tts_enabled=True)
+    if engine == 'kokoro':
+        voice['kokoro'] = {**(voice.get('kokoro') or {}), 'autostart': True}
+    save_config(config)
+    profile = load_user_profile()
+    profile.setdefault('preferences', {})['voice_enabled'] = True
+    save_user_profile(profile)
+    if engine == 'kokoro':
+        voice_service.ensure_started_async()
+    return jsonify(engine=engine, tts_enabled=True)
 
 
 @bp.route("/api/voice/toggle", methods=["POST"])
@@ -191,27 +237,25 @@ def toggle_voice():
 def _switch_speech_on():
     """The first time speech is switched on in Settings, turn it on in config.yaml too, so nobody has to edit the file.
 
-    Only for Altera's own local voice (the kokoro engine, its own launcher, a loopback address) and only when
+    For Altera's own local voice or a previously selected Voice Lab, and only when
     voice.tts_enabled is off: a config that already has speech on is left exactly as it is, and an online voice is
     never switched on from here, because it sends every reply away. Autostart is set as well, and the service is
     started if it is installed. Switching off is only the person's preference and never changes config.yaml.
     """
     import copy
-    from urllib.parse import urlparse
     from core import tts as tts_module, voice_service
     from core.config import save_config
     config = copy.deepcopy(get_config())
     voice = config['voice'] = dict(config.get('voice') or {})
     cfg = tts_module.settings(config)
-    kokoro = cfg['kokoro']
-    local = (cfg['engine'] == 'kokoro' and not kokoro['python'] and not kokoro['script']
-             and urlparse(kokoro['url']).hostname in voice_service.LOOPBACK)
-    if voice.get('tts_enabled') or not local:
+    own_kokoro = cfg['engine'] == 'kokoro' and voice_service.is_own_local(cfg)
+    if voice.get('tts_enabled') or not (own_kokoro or cfg['engine'] == 'voicelab'):
         return
     voice['tts_enabled'] = True
-    voice['kokoro'] = {**(voice.get('kokoro') or {}), 'autostart': True}
+    if own_kokoro:
+        voice['kokoro'] = {**(voice.get('kokoro') or {}), 'autostart': True}
     save_config(config)
-    if voice_service.installed():
+    if own_kokoro and voice_service.installed():
         voice_service.ensure_started_async()
 
 
@@ -232,7 +276,10 @@ def text_to_speech():
     chosen = data.get("voice")
     if chosen is not None:                            # a sample of one listed voice (Home's Play a sample)
         from core import pals
-        if not isinstance(chosen, str) or chosen.strip() not in {o["id"] for o in pals.voices()["options"]}:
+        voices = pals.voices()
+        if not voices['options'] and voices.get('message'):
+            return jsonify(audio_url=None, message=voices['message'])
+        if not isinstance(chosen, str) or chosen.strip() not in {o["id"] for o in voices["options"]}:
             return jsonify({"error": "Choose one of the listed voices."}), 400
         person_voice = chosen.strip()
     elif type(session_id) is int and session_id > 0:
@@ -241,13 +288,21 @@ def text_to_speech():
             person_voice = (companions.avatar_for_session(session_id) or {}).get("voice") or None
         except Exception:
             person_voice = None                       # the configured voice still speaks
-    audio_url = get_tts_audio(text, person_voice=person_voice) if person_voice else get_tts_audio(text)
+    from core import tts, voice_service
+    cfg = tts.settings()
+    notices = []
+    if cfg['engine'] == 'voicelab':
+        audio_url = get_tts_audio(text, person_voice=person_voice, notice=notices.append, preview=chosen is not None)
+    else:
+        audio_url = get_tts_audio(text, person_voice=person_voice) if person_voice else get_tts_audio(text)
+
+    if notices:
+        return jsonify(audio_url=audio_url, message=notices[-1])
 
     if audio_url:
         return jsonify({"audio_url": audio_url})
-    from core import tts, voice_service                # say why it stayed silent, for the one voice that was asked for
     try:
-        message = voice_service.problem(tts.with_person_voice(tts.settings(), person_voice))
+        message = voice_service.problem(tts.with_person_voice(cfg, person_voice))
     except Exception:
         message = "The voice could not speak just now. Try again."
     return jsonify({"audio_url": None, "message": message})

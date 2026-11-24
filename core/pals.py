@@ -113,6 +113,9 @@ def vibe(vibe_id, directory: Path | None = None) -> dict | None:
 def valid_voice(voice, engine) -> bool:
     if not voice:
         return True
+    if engine == 'voicelab':
+        from core import voicelab
+        return voicelab.valid_name(voice)
     pattern = _KOKORO_ID if engine == "kokoro" else _EDGE_ID
     return isinstance(voice, str) and bool(pattern.match(voice))
 
@@ -128,9 +131,25 @@ def voices(cfg=None) -> dict:
     from core import tts
     cfg = cfg or tts.settings()
     engine = cfg["engine"]
+    if engine == 'voicelab':
+        from core import voicelab
+        lab = cfg['voicelab']
+        try:
+            found = voicelab.catalogue(lab['url'])
+        except voicelab.LabError as error:
+            return {'engine': engine, 'default': tts.voice_label(cfg), 'options': [], 'message': str(error)}
+        default = lab['voice'] if any(row['id'] == lab['voice'] for row in found.voices) else voicelab.default_voice(found.voices)
+        return {'engine': engine, 'default': default or tts.voice_label(cfg), 'options': found.voices,
+                'message': found.notice or ('' if found.voices else voicelab.NO_VOICES)}
     options = KOKORO_VOICES if engine == "kokoro" else EDGE_VOICES
     return {"engine": engine, "default": tts.voice_label(cfg),
             "options": [{"id": voice_id, "label": label} for voice_id, label in options]}
+
+
+def _check_voice(voice, engine):
+    if not valid_voice(voice, engine) or (voice and engine == 'voicelab'
+                                         and voice not in {item['id'] for item in voices()['options']}):
+        raise PalError("Choose one of the listed voices, or the default voice.")
 
 
 # ---- a pal on disk ---------------------------------------------------------------------------------------------------
@@ -298,8 +317,7 @@ def create(store, name, vibe_id, voice="", engine=None, vibes_dir=None, kids=Fal
         from core import tts
         engine = tts.settings()["engine"]
     voice = (voice or "").strip()
-    if not valid_voice(voice, engine):
-        raise PalError("Choose one of the listed voices, or the default voice.")
+    _check_voice(voice, engine)
     if type(kids) is not bool:
         raise PalError("kids must be true or false.")
     if kids:
@@ -362,8 +380,8 @@ def update(store, avatar_id, *, name=None, voice=None, features=None, kids=None,
     if voice is not None:
         from core import tts
         voice = str(voice).strip()
-        if not valid_voice(voice, tts.settings()["engine"]):
-            raise PalError("Choose one of the listed voices, or the default voice.")
+        if voice != data.get('voice', ''):
+            _check_voice(voice, tts.settings()['engine'])
         data["voice"] = voice
     if persona is not None:
         data.update(_persona_changes(persona, data))

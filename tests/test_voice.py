@@ -720,6 +720,23 @@ def test_a_speech_failure_never_breaks_the_reply(chat_stream, monkeypatch):
     assert events[-1] == {"status": "done"} and not any(e.get("status") == "audio" for e in events)
 
 
+def test_stream_says_once_when_kokoro_takes_over_from_voice_lab(chat_stream, altera_config, monkeypatch):
+    from core.voicelab import FALLBACK
+    altera_config.write_text("voice:\n  tts_enabled: true\n  tts_engine: voicelab\n", encoding="utf-8")
+
+    def fallback(text, **kwargs):
+        kwargs['notice'](FALLBACK)
+        return "/static/audio/tts/kokoro.wav"
+
+    monkeypatch.setattr(voice_layer, 'get_tts_audio', fallback)
+    client, sid = chat_stream(REPLY)
+    events = stream_events(client, sid)
+    notices = [event for event in events if event.get('status') == 'voice_notice']
+    assert notices == [{'status': 'voice_notice', 'message': FALLBACK}]
+    assert events.index(notices[0]) < next(i for i, event in enumerate(events) if event.get('status') == 'audio')
+    assert events[-1] == {"status": "done"}
+
+
 def test_the_cloud_permission_is_looked_up_once_and_only_when_the_fallback_is_on(chat_stream, altera_config, monkeypatch):
     seen = []
     monkeypatch.setattr(voice_layer, "get_tts_audio",

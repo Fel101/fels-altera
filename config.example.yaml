@@ -17,6 +17,7 @@ voice:
   tts_enabled: false
   tts_engine: kokoro
   cloud_fallback: false
+  voicelab: {}  # Choose in Settings. Optional url and default voice name override discovery and the default voice.
   kokoro:
     url: http://127.0.0.1:8770
     # Install Altera's local voice first (voice\setup.bat or sh voice/setup.sh), then set autostart: true.

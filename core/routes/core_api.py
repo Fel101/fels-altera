@@ -248,6 +248,7 @@ def chat_stream(_json_response=False, _regenerate=False):
     # Extract session values before entering generator (session needs request context in Flask 3.x)
     voice_enabled = False
     allow_cloud = False
+    voice_notices = False
     person_voice = None
     try:
         cfg = get_config()          # cached; this used to re-read and re-parse config.yaml on every streamed turn
@@ -259,7 +260,9 @@ def chat_stream(_json_response=False, _regenerate=False):
             from core import companions as companions_module
             person_voice = (companions_module.avatar_for_session(session_id) or {}).get('voice') or None
             from core import tts as tts_module
-            if tts_module.settings(cfg)["cloud_fallback"]:
+            speech_cfg = tts_module.settings(cfg)
+            voice_notices = speech_cfg['engine'] == 'voicelab'
+            if speech_cfg['engine'] == 'edge' or speech_cfg['cloud_fallback']:
                 allow_cloud = tts_module.cloud_allowed()     # adult mode is looked up here, in the request thread
     except Exception:
         # Voice is optional, so a failure here must not stop the reply — but swallowing it silently meant a broken
@@ -288,14 +291,23 @@ def chat_stream(_json_response=False, _regenerate=False):
             from core.voice_layer import SpeechStream
             turn = CURRENT_TURN.get()
             speech = SpeechStream(allow_cloud=allow_cloud, cancel_event=turn.speech_cancel if turn else None,
-                                  person_voice=person_voice)
+                                  person_voice=person_voice, **({'voice_notices': True} if voice_notices else {}))
         clip_count = 0
+        said_voice_notice = False
+
+        def voice_notice():
+            nonlocal said_voice_notice
+            if voice_notices and speech.notice and not said_voice_notice:
+                said_voice_notice = True
+                yield f"data: {json.dumps({'status': 'voice_notice', 'message': speech.notice})}\n\n"
 
         def audio_events(urls):
             nonlocal clip_count
             for url in urls:
+                yield from voice_notice()
                 clip_count += 1
                 yield f"data: {json.dumps({'status': 'audio', 'audio_url': url, 'seq': clip_count})}\n\n"
+            yield from voice_notice()
 
         full_response = ""
         stream_failed = False
@@ -340,7 +352,11 @@ def chat_stream(_json_response=False, _regenerate=False):
             if speech and not stopped and not getattr(current_turn, 'cleanup_unconfirmed', False):
                 try:
                     speech.finish()
-                    yield from audio_events(speech.drain_iter())      # each clip is sent the moment it is ready
+                    if voice_notices:
+                        from core.voicelab import SPEECH_TIMEOUT_S
+                        yield from audio_events(speech.drain_iter(timeout=SPEECH_TIMEOUT_S + 10))
+                    else:
+                        yield from audio_events(speech.drain_iter())  # each clip is sent the moment it is ready
                 except Exception:
                     LOGGER.exception("TTS generation error")
 

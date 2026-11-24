@@ -18,7 +18,8 @@ from core.serial_jobs import OwnedSerialExecutor
 LOGGER = logging.getLogger(__name__)
 
 
-def get_tts_audio(text: str, voice_name: str = None, allow_cloud: bool = None, person_voice: str = None) -> str | None:
+def get_tts_audio(text: str, voice_name: str = None, allow_cloud: bool = None, person_voice: str = None,
+                  *, notice=None, preview=False) -> str | None:
     """Speech for text as a URL under /static/audio/tts, or None (nothing to say, or the voice is unavailable).
 
     voice_name only matters for the edge (Microsoft cloud) engine. allow_cloud says whether the cloud voice may be used as a
@@ -26,7 +27,8 @@ def get_tts_audio(text: str, voice_name: str = None, allow_cloud: bool = None, p
     """
     from core import tts
     try:
-        path = tts.synthesize_long(text, allow_cloud=allow_cloud, voice_name=voice_name, person_voice=person_voice)
+        options = {'notice': notice, 'preview': preview} if notice or preview else {}
+        path = tts.synthesize_long(text, allow_cloud=allow_cloud, voice_name=voice_name, person_voice=person_voice, **options)
     except tts.TTSUnavailable:
         return None                                   # core.tts has already said so, once
     except Exception:
@@ -54,10 +56,12 @@ class SpeechStream:
     FIRST_MIN_CHARS = 25       # the first clip starts as soon as one finished sentence has this much speakable text
     MIN_CHARS = 90             # later clips gather sentences up to about this much (fewer, smoother clips)
 
-    def __init__(self, allow_cloud=None, synth=None, cancel_event=None, person_voice=None):
+    def __init__(self, allow_cloud=None, synth=None, cancel_event=None, person_voice=None, voice_notices=False):
         self._allow_cloud = allow_cloud
         self._person_voice = person_voice
         self._synth = synth
+        self._voice_notices = voice_notices
+        self.notice = None
         self._cancel_event = cancel_event
         self._buffer = ""
         self._pending = []                 # finished sentences not yet handed to the worker
@@ -144,9 +148,16 @@ class SpeechStream:
             return None
         if self._synth is not None:
             return self._synth(text)
+        if self._voice_notices:
+            return get_tts_audio(text, allow_cloud=self._allow_cloud, person_voice=self._person_voice,
+                                 notice=self._record_notice)
         if self._person_voice:
             return get_tts_audio(text, allow_cloud=self._allow_cloud, person_voice=self._person_voice)
         return get_tts_audio(text, allow_cloud=self._allow_cloud)      # looked up now, so tests can replace it
+
+    def _record_notice(self, message):
+        if self.notice is None:
+            self.notice = message
 
     # -- output --------------------------------------------------------------------------------------------------------
 

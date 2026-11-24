@@ -8,8 +8,13 @@ Voice settings also report when the configured local transcription model is miss
 
 ## A local voice
 
-Altera can speak with Microsoft's online voice (`voice.tts_engine: edge`, nothing to install, every reply is sent to
-Microsoft) or with a local voice that never leaves your PC (`kokoro`). The local voice is Altera's own small service in
+Altera can speak with Voice Lab, its own Kokoro service, or Microsoft's online voice. For Voice Lab, start the Lab with
+a ready voice and choose **Use Voice Lab for speech** in Setup or Settings. In a pal's settings, pick a Cast or preset
+voice, check its licence badge, and use **Play a sample** to hear it. Altera keeps that pal's voice choice when the Lab
+is closed. If the Lab is unavailable, Altera says so and uses a local Kokoro service if it is ready. If a previously
+enabled Kokoro service needs to start, a later reply can use it once it is ready.
+
+Altera's own Kokoro is a small service in
 `voice/`, running [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) (Apache-2.0). It is optional and installed
 separately, because it needs PyTorch, which Altera's own environment does not have.
 
@@ -23,8 +28,8 @@ separately, because it needs PyTorch, which Altera's own environment does not ha
    (`voice.tts_enabled` and `voice.kokoro.autostart`) and starts the service. From then on Altera starts it when it
    starts and stops it when it exits. Switching Voice off again changes only your own preference.
 
-Settings only ever switches on this local voice. Microsoft's online voice sends every reply away, so it is chosen in
-`config.yaml` by hand: `voice.tts_engine: edge` and `voice.tts_enabled: true`.
+Microsoft's online voice sends spoken text to Microsoft and is selected in `config.yaml` with
+`voice.tts_engine: edge` and `voice.tts_enabled: true`. Adult mode keeps Microsoft speech off.
 
 The service listens on `127.0.0.1:8770` only and refuses requests a web page could send it. It runs on the CPU by
 default. Measured once, on a 16-core PC with an AMD ROCm build of PyTorch: a 4-second sentence took about 10 seconds to

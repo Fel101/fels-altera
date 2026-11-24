@@ -177,6 +177,36 @@
             list.replaceChildren(...found.map(([piece, data]) => row(piece, data)));
         }
 
+        async function labOffer() {
+            const useLab = $('setupLabUse');
+            if (!useLab) return;
+            try {
+                const lab = await call('/api/voice/lab');
+                useLab.hidden = lab.selected || !lab.ready;
+                say('setupLabStatus', lab.selected && lab.ready
+                    ? [lab.notice, 'Voice Lab is selected for speech.'].filter(Boolean).join(' ') : lab.message);
+            } catch (_) {
+                useLab.hidden = true;
+                say('setupLabStatus', 'Could not check Voice Lab. You can try again from Settings.');
+            }
+        }
+
+        async function useVoiceLab() {
+            const useLab = $('setupLabUse');
+            useLab.disabled = true;
+            try {
+                await call('/api/voice/engine', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({engine: 'voicelab'})});
+                useLab.hidden = true;
+                say('setupLabStatus', 'Voice Lab is selected for speech.');
+                await optional();
+            } catch (error) {
+                say('setupLabStatus', error.message);
+            } finally {
+                useLab.disabled = false;
+            }
+        }
+
         function name() { return ($('setupName')?.value || '').trim(); }
 
         async function save(then) {
@@ -213,13 +243,14 @@
                 state.name = data.name || '';
                 if (state.name && $('setupName') && !$('setupName').value) $('setupName').value = state.name;
             } catch (_) { /* the model check below still runs */ }
-            await Promise.all([optional(), providers()]);
+            await Promise.all([optional(), providers(), labOffer()]);
             await check();
             return state;
         }
 
         if ($('setupCheck')) $('setupCheck').addEventListener('click', check);
         if ($('setupUse')) $('setupUse').addEventListener('click', use);
+        if ($('setupLabUse')) $('setupLabUse').addEventListener('click', useVoiceLab);
         if ($('setupProvider')) $('setupProvider').addEventListener('change', event => models(event.target.value));
         if ($('setupDone')) $('setupDone').addEventListener('click', finish);
         if ($('setupSkip')) $('setupSkip').addEventListener('click', skip);

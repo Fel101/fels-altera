@@ -12,9 +12,9 @@ On **Home** (`/home`), choose **Make a pal** (on the Pals tile's empty note, or 
 - **Vibes** are YAML presets shipped in `content/pals/` (Sunny, Chill, Witty, Thoughtful, Geeky). Each has the same shape
   as `personality.yaml` (`traits`, `speech_style`, `interests`, `quirks`) plus `label`, `description` and `order` for the
   picker. Add a file there to add a vibe; a file that does not parse is skipped.
-- **Voices** are the ones the speech engine chosen in Settings can use (Kokoro voices for the local voice, Microsoft
-  neural voices for the cloud voice). **Default** uses the voice from Settings. A pal's voice that does not belong to the
-  current engine is ignored, so switching engines never breaks speech.
+- **Voices** come from the speech engine in Settings. With Voice Lab selected, the picker lists ready Cast voices first,
+  then ready presets. Each voice shows its licence rating and **Play a sample** lets you hear it before saving.
+  **Default** uses the configured voice. A saved choice is kept if its engine or voice is unavailable.
 
 ## What a pal keeps
 

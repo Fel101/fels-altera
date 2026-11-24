@@ -36,8 +36,9 @@ AlteraPage.ready(() => MainUI.run(async () => {
     const kidsView = document.body.classList.contains('kids-view');
     setupMainEditTracking();
     if (!kidsView) { configureVoiceNotes(); configurePresence(); }
+    const voiceReady = initVoiceLayer();
     // The page opens on the companion you talked to last (see companions.js). With no avatar at all, the default chat is used.
-    const opened = typeof openCurrentCompanion === 'function' ? await openCurrentCompanion() : false;
+    const opened = typeof openCurrentCompanion === 'function' ? await openCurrentCompanion(voiceReady) : false;
     MainUI.assert();
     if (!opened) {
         if (currentSessionId) await loadMessages(currentSessionId);
@@ -61,7 +62,6 @@ AlteraPage.ready(() => MainUI.run(async () => {
     MainUI.assert();
 
     setupAutoResize();
-    initVoiceLayer();  // Phase 3: Initialize voice layer
     if (!kidsView && typeof PresenceUI !== 'undefined') PresenceUI.refresh();
 
     if (!kidsView) {
@@ -200,7 +200,8 @@ function updateVoiceStatus(statusData) {
         const state = statusData.voice_state;
         const note = (state === 'warming' || state === 'starting') ? ' (getting ready...)'
             : (state === 'down' ? ' (voice service is not running)' : '');
-        statusEl.textContent = `TTS on — ${statusData.voice_name}${note}`;
+        statusEl.textContent = statusData.tts_engine === 'voicelab'
+            ? statusData.voice_message : `TTS on — ${statusData.voice_name}${note}`;
         statusEl.style.color = state === 'down' ? 'var(--warning)' : 'var(--success)';
     } else if (statusData.config_tts_enabled) {
         statusEl.textContent = 'TTS enabled in config but turned off — toggle to hear Altera speak';
@@ -209,6 +210,9 @@ function updateVoiceStatus(statusData) {
         // Switching on also turns speech on in config.yaml (POST /api/voice/toggle), for the local voice only.
         statusEl.textContent = 'Off. Switch it on to hear replies in the local voice (install it first with voice\\setup.bat).';
         statusEl.style.color = 'var(--text-muted)';
+    } else if (statusData.tts_engine === 'voicelab') {
+        statusEl.textContent = 'Voice Lab is selected. Switch Voice on to hear replies.';
+        statusEl.style.color = 'var(--text-muted)';
     } else {
         statusEl.textContent = 'Off. The online voice sends every reply to Microsoft, so it is only switched on in config.yaml (voice.tts_enabled: true).';
         statusEl.style.color = 'var(--text-muted)';
@@ -216,6 +220,42 @@ function updateVoiceStatus(statusData) {
     if (statusData.stt_model_state === 'unavailable') {
         statusEl.textContent += ' · Local speech recognition model is missing or incomplete';
         statusEl.style.color = 'var(--warning)';
+    }
+}
+
+async function loadVoiceLabOffer() {
+    const line = document.getElementById('voiceLabStatus');
+    const button = document.getElementById('voiceLabUse');
+    if (!line || !button) return;
+    try {
+        const {res, data} = await MainUI.json('/api/voice/lab');
+        if (!res.ok) throw new Error();
+        button.hidden = !data.ready && !data.selected;
+        button.dataset.engine = data.selected ? 'kokoro' : 'voicelab';
+        button.textContent = data.selected ? 'Use Altera’s Kokoro' : 'Use Voice Lab for speech';
+        line.textContent = data.selected && data.ready
+            ? [data.notice, 'Voice Lab is selected for speech.'].filter(Boolean).join(' ') : data.message;
+    } catch (_) {
+        if (!MainUI.active) return;
+        line.textContent = 'Could not check Voice Lab. Reopen Settings to try again.';
+        button.hidden = true;
+    }
+}
+
+async function useVoiceLab() {
+    const line = document.getElementById('voiceLabStatus');
+    const button = document.getElementById('voiceLabUse');
+    button.disabled = true;
+    try {
+        const {res, data} = await MainUI.json('/api/voice/engine', {method: 'POST',
+            headers: {'Content-Type': 'application/json'}, body: JSON.stringify({engine: button.dataset.engine})});
+        if (!res.ok) throw new Error(data.error || 'Could not change the speech engine. Try again.');
+        stopSpeech();
+        await Promise.all([initVoiceLayer(), loadVoiceLabOffer(), checkSystemHealth()]);
+    } catch (error) {
+        if (MainUI.active) line.textContent = error.message;
+    } finally {
+        if (MainUI.active) button.disabled = false;
     }
 }
 
@@ -965,6 +1005,7 @@ async function fallbackTTS(text, msgEl = null, requestId = msgEl?.dataset.speech
         if (!res.ok) return;
 
         const data = await res.json();
+        if (data.message && playbackEpoch === speechPlaybackEpoch) showVoiceNotice(data.message);
         if (data.audio_url && playbackEpoch === speechPlaybackEpoch) {
             playTTS(text, data.audio_url, msgEl, requestId);
         }
@@ -1512,6 +1553,19 @@ function showReplyNotice(message, reviewDrafts = false) {
     document.getElementById('messagesContainer').append(notice);
 }
 
+function showVoiceNotice(message) {
+    let notice = document.getElementById('voiceNotice');
+    if (!notice) {
+        notice = document.createElement('div');
+        notice.id = 'voiceNotice';
+        notice.className = 'reply-notice';
+        notice.setAttribute('role', 'status');
+        document.getElementById('messagesContainer').append(notice);
+    }
+    notice.textContent = message;
+    scrollToBottom();
+}
+
 async function resumePendingTurn() {
     if (isStreaming) return;
     const payload = pendingForSession();
@@ -1570,6 +1624,7 @@ async function runChatStream(payload, hooks = {}) {
         payload.dataset_epoch = payload.dataset_epoch || AlteraAPI.epoch;
     }
     keepPendingTurn(payload);
+    document.getElementById('voiceNotice')?.remove();
     if (hooks.onPrepared) hooks.onPrepared();
     if (typeof ChatControls !== 'undefined') ChatControls.begin(payload.request_id);
     const turn = {id: payload.request_id, payload, terminal: null, settled: false};
@@ -1675,6 +1730,8 @@ async function readChatStream(payload, hooks, replaying, turn) {
         } else if (data.status === 'audio') {
             if (typeof AlteraBackchannel !== 'undefined') AlteraBackchannel.stop();
             if (!replaying) queueSpeech(data.audio_url, payload.request_id);
+        } else if (data.status === 'voice_notice' && data.message) {
+            showVoiceNotice(data.message);
         } else if (data.status === 'notes') {
             if (typeof watchNotes === 'function') watchNotes();
         } else if (data.photo) {
@@ -2021,6 +2078,7 @@ function toggleSettings() {
     if (panel.classList.contains('open')) {
         document.getElementById('sidebar')?.classList.remove('mobile-open');
         document.getElementById('sidebarOverlay')?.classList.remove('visible');
+        loadVoiceLabOffer();
     }
 }
 
@@ -2247,7 +2305,7 @@ const MainUI = (() => {
     });
 })();
 // Own public main-page actions; lifecycle stop/save hooks keep their raw functions.
-for (const name of ['checkConnection', 'initVoiceLayer', 'toggleVoiceLayer', 'toggleAutoInterruption', 'openVoiceNotes', 'sendReviewedVoiceNote',
+for (const name of ['checkConnection', 'initVoiceLayer', 'useVoiceLab', 'toggleVoiceLayer', 'toggleAutoInterruption', 'openVoiceNotes', 'sendReviewedVoiceNote',
     'toggleRecording', 'startRecording', 'fallbackTTS', 'setTheme', 'setAccentColor', 'toggleDiscreet', 'toggleSidebar', 'exportData', 'clearAllData',
     'loadProviderSettings', 'onProviderChange', 'refreshModels', 'onModelChange', 'testProviderConnection', 'applyProviderModel',
     'sendMessage', 'resumePendingTurn', 'runChatStream', 'toggleToolDrawer', 'switchToolTab', 'refreshWorkspaceFiles', 'selectWorkspaceFile',

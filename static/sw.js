@@ -92,7 +92,8 @@
 // v110: the setup page links to NPC Forge, and About links to all four Fel's Studio apps.
 // v111: suite GPU status, reply waiting, and NPC Forge connection details.
 // v112: Meet someone new uses Forge's Modern life setting and offers a gender choice.
-const CACHE_VERSION = 'v112';
+// v113: Voice Lab discovery, per-pal voice licences and speech availability.
+const CACHE_VERSION = 'v113';
 const STATIC_CACHE = `altera-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `altera-dynamic-${CACHE_VERSION}`;
 

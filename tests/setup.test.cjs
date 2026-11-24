@@ -25,7 +25,7 @@ const text = node => [node.textContent, ...node.children.flatMap(text)].filter(B
 
 const IDS = ['setupTitle', 'setupIntro', 'setupName', 'setupModelState', 'setupModelDetail', 'setupModelNote',
     'setupCheck', 'setupOptional', 'setupStatus', 'setupSkip', 'setupDone', 'setupSkipLink',
-    'setupProvider', 'setupModel', 'setupUse', 'setupWhere'];
+    'setupProvider', 'setupModel', 'setupUse', 'setupWhere', 'setupLabStatus', 'setupLabUse'];
 
 function page() {
     const byId = Object.fromEntries(IDS.map(id => [id, new Element(/^(setup(Name|Check|Done|Skip)$)/.test(id) ? 'button' : 'div')]));
@@ -46,7 +46,8 @@ function load() {
 
 function server({check = {ok: true, model: 'local-chat', reply: 'OK', ms: 320},
                  status = {complete: false, name: ''}, voice = {tts_enabled: false},
-                 forge = {online: true, comfy_online: true}, comfy = {online: false}, complete = 200} = {}) {
+                 forge = {online: true, comfy_online: true}, comfy = {online: false}, complete = 200,
+                 lab = {ready: false, message: 'Start Voice Lab to use its voices.'}} = {}) {
     const calls = [];
     const reply = (code, payload) => ({ok: code < 400, status: code, json: async () => payload});
     const fetchImpl = async (url, init = {}) => {
@@ -54,6 +55,8 @@ function server({check = {ok: true, model: 'local-chat', reply: 'OK', ms: 320},
         if (url === '/api/onboarding/status') return reply(200, status);
         if (url === '/api/setup/check') return reply(200, check);
         if (url === '/api/voice/status') return reply(200, voice);
+        if (url === '/api/voice/lab') return reply(200, lab);
+        if (url === '/api/voice/engine') return reply(200, {engine: 'voicelab', tts_enabled: true});
         if (url === '/api/forge/status') return reply(200, forge);
         if (url === '/api/imagegen/status') return reply(200, {comfy});
         if (url === '/api/onboarding/complete') return reply(complete, complete < 400 ? {status: 'ok'} : {error: 'Synthetic refusal'});
@@ -111,8 +114,24 @@ test('the optional pieces are listed with what is up, and none of them blocks', 
     assert.match(text(byId.setupOptional.children[0]), /Speech\s+— Off/);
     assert.match(text(byId.setupOptional.children[1]), /NPC Forge\s+— Running, but ComfyUI is not reachable/);
     assert.match(text(byId.setupOptional.children[2]), /ComfyUI\s+— Not running/);
-    assert.match(template, /Planned support for <a href="https:\/\/github\.com\/Fel101\/fels-voice-lab"[^>]*>Voice Lab<\/a> will let you give each pal a voice/);
+    assert.match(template, /<a href="https:\/\/github\.com\/Fel101\/fels-voice-lab"[^>]*>Voice Lab<\/a> can give each pal a voice/);
+    assert.equal(byId.setupLabUse.hidden, true);
     assert.equal(byId.setupDone.disabled, false);
+});
+
+test('Setup offers Voice Lab and switches speech only on a click', async () => {
+    const {doc, byId} = page();
+    const {fetchImpl, calls} = server({lab: {ready: true, count: 14, selected: false,
+        message: 'Voice Lab is running with 14 voices. Use it for speech?'}});
+    const setup = load().start({doc, fetchImpl, navigate() {}, search: () => ''});
+    await setup.loaded;
+    assert.equal(byId.setupLabStatus.textContent, 'Voice Lab is running with 14 voices. Use it for speech?');
+    assert.equal(byId.setupLabUse.hidden, false);
+    assert.equal(calls.some(call => call.url === '/api/voice/engine'), false);
+    await byId.setupLabUse.click();
+    assert.deepEqual(calls.find(call => call.url === '/api/voice/engine'),
+        {url: '/api/voice/engine', method: 'POST', body: {engine: 'voicelab'}});
+    assert.equal(byId.setupLabStatus.textContent, 'Voice Lab is selected for speech.');
 });
 
 test('NPC Forge that is not running is just "Not running", never an instruction to start a tool most people lack', async () => {

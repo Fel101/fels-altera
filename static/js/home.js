@@ -53,7 +53,7 @@
                     play = url => new window.Audio(url).play()} = {}) {
         const $ = id => doc.getElementById(id);
         const on = (id, event, callback) => { const node = $(id); if (node) node.addEventListener(event, callback); };
-        const state = {data: null, kind: null, busy: false, options: null, editing: null};
+        const state = {data: null, kind: null, busy: false, editing: null};
 
         function status(text) { $('homeStatus').textContent = text; }
 
@@ -353,14 +353,38 @@
 
         // ---- pals: making one and its settings -----------------------------------------------------------------------
         async function options() {
-            if (!state.options) state.options = await call('/api/pals/options');
-            return state.options;
+            return call('/api/pals/options');
         }
 
         function fillVoices(select, voices, chosen = '') {
-            select.replaceChildren(create(doc, 'option', {value: ''}, `Default: ${voices?.default || 'the voice in Settings'}`),
-                ...(voices?.options || []).map(voice => create(doc, 'option', {value: voice.id}, voice.label)));
-            select.value = (voices?.options || []).some(voice => voice.id === chosen) ? chosen : '';
+            const choices = (voices?.options || []).map(voice => {
+                const licence = voice.licence;
+                const option = create(doc, 'option', {value: voice.id}, licence?.label ? `${voice.label} · ${licence.label}` : voice.label);
+                if (licence?.label) {
+                    option.dataset.licence = licence.label;
+                    option.dataset.reason = licence.reason || '';
+                }
+                return option;
+            });
+            const unavailable = !!chosen && !choices.some(voice => voice.value === chosen);
+            if (unavailable) choices.push(create(doc, 'option', {value: chosen}, `${chosen} (saved, unavailable)`));
+            select.replaceChildren(create(doc, 'option', {value: ''}, `Default: ${voices?.default || 'the voice in Settings'}`), ...choices);
+            select.value = chosen || '';
+            select.dataset.savedUnavailable = unavailable ? chosen : '';
+            select.dataset.voiceMessage = voices?.message || '';
+            showVoiceLicence(select);
+        }
+
+        function showVoiceLicence(select) {
+            const note = $(`${select.id}Info`);
+            if (!note) return;
+            const selected = [...select.children].find(option => option.value === select.value);
+            const {licence, reason} = selected?.dataset || {};
+            const message = select.dataset.voiceMessage;
+            note.hidden = !(licence || message);
+            note.replaceChildren();
+            if (licence) note.append(create(doc, 'span', {class: 'home-badge'}, licence));
+            if (reason || message) note.append(create(doc, 'span', {}, ` ${reason || message}`));
         }
 
         function showDialog(id) {
@@ -439,7 +463,7 @@
                     return;
                 }
                 await play(answer.audio_url);
-                $(statusId).textContent = '';
+                $(statusId).textContent = answer.message || '';
             } catch (error) {
                 $(statusId).textContent = error.message || 'Could not play a sample. Try again.';
             }
@@ -1086,6 +1110,7 @@
                     $('palSettingsNotesBox').hidden = !current.creator_notes;
                 }
                 fillVoices($('palSettingsVoice'), voices, current.voice);
+                if (state.forgeCompanion && $('palSettingsVoiceInfo')) $('palSettingsVoiceInfo').hidden = true;
                 for (const box of doc.querySelectorAll('#palSettingsDialog [data-feature]')) {
                     box.checked = current.features?.[box.dataset.feature] === true;
                     box.disabled = false;
@@ -1131,6 +1156,7 @@
                     ? {voice: $('palSettingsVoice').value, features, card_instructions: $('palSettingsInstructions').checked === true}
                     : written ? {name: $('palSettingsName').value.trim(), voice: $('palSettingsVoice').value}
                     : {name: $('palSettingsName').value.trim(), voice: $('palSettingsVoice').value, features};
+                if (body.voice && body.voice === $('palSettingsVoice').dataset.savedUnavailable) delete body.voice;
                 if (!character && !written && state.editingPersona !== null) {
                     const persona = readPersona();
                     if (JSON.stringify(persona) !== state.editingPersona) body.persona = persona;   // only when changed
@@ -1164,6 +1190,8 @@
         on('palSettingsCancel', 'click', () => { state.editing = null; closeDialog('palSettingsDialog'); });
         on('palVoiceSample', 'click', () => playSample('palVoice', 'palStatus', $('palName').value.trim()));
         on('palSettingsVoiceSample', 'click', () => playSample('palSettingsVoice', 'palSettingsStatus', state.editing?.name));
+        on('palVoice', 'change', event => showVoiceLicence(event.target));
+        on('palSettingsVoice', 'change', event => showVoiceLicence(event.target));
         on('palSettingsPortraitMake', 'click', openPortrait);
         on('palSettingsPortraitLife', 'click', bringToLife);
         on('palSettingsPortraitUndo', 'click', removePortrait);

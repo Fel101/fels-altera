@@ -8,6 +8,12 @@ When voice output is enabled, at most one short, low-volume clip may play after 
 
 Kokoro uses the configured `voice.kokoro.url`, defaulting to `http://127.0.0.1:8770`. An explicitly configured remote endpoint receives the speech text; its label says **configured server** rather than **local**. The separate Microsoft voice and its opt-in cloud fallback retain their existing controls.
 
+Voice Lab uses `voice.voicelab.url` or `VOICE_LAB_URL` if supplied, then the suite address file and local port 8765.
+The health answer must identify Voice Lab before a voice list or speech request is sent. A remote address is used
+only when it is explicitly configured. It receives the text that is spoken. Set `voice.voicelab.voice` to a ready name
+to choose the default. Altera lists ready voices with `GET /api/voices` and requests WAV with `POST /v1/audio/speech`.
+The response is cached by Altera. Voice Lab processes the speech without keeping a Cast take.
+
 ## Starting and observing
 
 Ordinary app startup can start Kokoro when its configured autostart is enabled. An actual speech request can queue a bounded startup retry when the service is unavailable. Reading `/api/voice/status`, including HEAD, checks availability without launching or queueing a service; repeatedly opening a status panel cannot restart it. A service that is down can stay down until the next speech request or configured app startup.
@@ -18,7 +24,9 @@ Altera only starts a service for a configured loopback endpoint and existing int
 
 Both metadata and speech use a fresh direct HTTP(S) opener. Ambient HTTP/HTTPS/ALL proxy settings and a globally installed urllib opener are ignored. Redirects are refused, including redirects to the same host: configure the final base URL deliberately. HTTPS retains certificate verification. Base paths such as `https://example.invalid/speech` are supported; embedded credentials, query/fragment components, control characters, invalid ports and other URL schemes are refused.
 
-Metadata is limited to 64 KiB and must decode to a JSON object. Each speech response is limited to 16 MiB before any cache file is published. Declared excessive/malformed lengths, excessive streamed output and truncated declared responses are refused. The limits apply to response bytes; they do not establish audio quality or a whole-request wall-clock deadline. The configured socket timeout still applies.
+Kokoro metadata is limited to 64 KiB. Voice Lab health is limited to 128 KiB and its voice list to 2 MiB. Each speech
+response is limited to 16 MiB before any cache file is published. Invalid lengths and truncated responses are refused.
+Voice Lab WAVs must also have a readable format and complete frames.
 
 Provider errors report a fixed HTTP status message. Their response bodies, redirect locations, connection URLs and internal paths are not included in that error. A malformed, redirected, oversized or HTTP-error response is a speech failure and does not trigger Microsoft fallback. An unreachable service can use fallback only under the existing explicit cloud setting and content controls. Saved text remains available if speech fails.
 

@@ -66,6 +66,23 @@ def installed(cfg=None):
     return python.is_file() and script.is_file()
 
 
+def is_own_local(cfg):
+    local = cfg['kokoro']
+    return voice_http.is_loopback(local['url']) and not local['python'] and not local['script']
+
+
+def kokoro_fallback_ready(cfg):
+    """Only a running or already installed loopback Kokoro can back up Voice Lab."""
+    local = cfg['kokoro']
+    if not voice_http.is_loopback(local['url']):
+        return False
+    if info(cfg) is not None:
+        return True
+    if local['autostart'] and installed(cfg):
+        ensure_started_async(cfg)
+    return False
+
+
 def info(cfg=None, timeout=0.7):
     """What the service says about itself ({"device", "loaded": [...]}), or None when it cannot be reached."""
     cfg = cfg or tts.settings()
@@ -155,7 +172,14 @@ def unload_gpu():
 def status(cfg=None, ensure_started=False):
     """{"state": cloud | ready | warming | starting | down, "message": text} for the status light."""
     cfg = cfg or tts.settings()
-    if cfg["engine"] != "kokoro":
+    if cfg['engine'] == 'voicelab':
+        from core import voicelab
+        state = voicelab.status(cfg['voicelab']['url'])
+        if not state['ready']:
+            return {'state': 'down', 'message': state['message']}
+        location = ' on your configured server' if state['remote'] else ''
+        return {'state': 'ready', 'message': f'{tts.voice_label(cfg)} is ready{location}.'}
+    if cfg["engine"] == "edge":
         return {"state": "cloud", "message": tts.voice_label(cfg)}
     label = tts.voice_label(cfg)
     with _lock:
@@ -182,7 +206,12 @@ def status(cfg=None, ensure_started=False):
 def problem(cfg=None):
     """Why speech in cfg's voice was not made, in words for the person (a sample that stayed silent). Never starts anything."""
     cfg = cfg or tts.settings()
-    if cfg["engine"] != "kokoro":
+    if cfg['engine'] == 'voicelab':
+        state = status(cfg)
+        return state['message'] if state['state'] == 'down' else 'Voice Lab could not speak that line. Try again in Voice Lab.'
+    if cfg["engine"] == "edge":
+        if not tts.cloud_allowed():
+            return 'Microsoft speech is unavailable while adult mode is on.'
         return "Microsoft's online voice did not answer. Check the internet connection and try again."
     voice = cfg["kokoro"]["voice"]
     from core.pals import voice_name
@@ -326,7 +355,10 @@ def start_in_background():
     if env.get('DISABLE_AUTOSTART') == '1':
         return
     cfg = tts.settings()
-    if cfg["engine"] != "kokoro":
+    if cfg['engine'] == 'voicelab':
+        LOGGER.info('Voice: %s', tts.voice_label(cfg))
+        return
+    if cfg["engine"] == "edge":
         LOGGER.warning(f"  Voice: {tts.voice_label(cfg)} (sends replies to Microsoft to be spoken)")
         return
 

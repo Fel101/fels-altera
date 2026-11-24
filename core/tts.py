@@ -1,12 +1,13 @@
 """
 Altera — Text-to-Speech (TTS)
 
-Two engines, chosen by voice.tts_engine in config.yaml:
+Engines chosen by voice.tts_engine in config.yaml:
 
   kokoro  A local voice (Kokoro, e.g. af_heart) made by Altera's voice service in voice/ (installed separately with
           voice/setup.bat or voice/setup.sh), which Altera starts itself (core/voice_service.py). The default endpoint is
           loopback; an explicitly configured remote URL receives speech text.
   edge    Microsoft's online read-aloud service through edge-tts. Every reply is sent to Microsoft to be spoken.
+  voicelab  A ready Cast or preset voice from Voice Lab, using its WAV endpoint.
 
 With the kokoro engine, when the local voice is down Altera stays quiet, unless voice.cloud_fallback is true. Even then the cloud
 voice is never used while adult mode is on.
@@ -29,7 +30,7 @@ import wave
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from core import voice_http
+from core import voice_http, voicelab
 
 
 LOGGER = logging.getLogger(__name__)
@@ -75,8 +76,9 @@ def settings(config=None):
         config = get_config()
     voice = config.get("voice") or {}
     kokoro = voice.get("kokoro") or {}
+    lab = voice.get("voicelab") or {}
     engine = str(voice.get("tts_engine") or "edge").strip().lower()
-    if engine not in ("kokoro", "edge"):
+    if engine not in ("kokoro", "edge", "voicelab"):
         engine = "edge"
     try:
         speed = min(2.0, max(0.5, float(kokoro.get("speed", 1.0))))
@@ -85,7 +87,9 @@ def settings(config=None):
     return {
         "engine": engine,
         "edge_voice": voice.get("voice_name") or DEFAULT_VOICE,
-        "cloud_fallback": bool(voice.get("cloud_fallback", False)),
+        "cloud_fallback": engine == "kokoro" and bool(voice.get("cloud_fallback", False)),
+        "voicelab": {"url": str(lab.get("url") or "").strip().rstrip("/"),
+                     "voice": str(lab.get("voice") or "").strip()},
         "kokoro": {
             "voice": str(kokoro.get("voice") or DEFAULT_KOKORO_VOICE),
             "speed": speed,
@@ -101,6 +105,9 @@ def settings(config=None):
 def voice_label(cfg=None):
     """A short name for the voice in use, for the status line."""
     cfg = cfg or settings()
+    if cfg["engine"] == "voicelab":
+        name = cfg["voicelab"]["voice"]
+        return f"Voice Lab · {name}" if name else "Voice Lab"
     if cfg["engine"] == "kokoro":
         try:
             local = urlsplit(cfg['kokoro'].get('url', DEFAULT_KOKORO_URL)).hostname in {'127.0.0.1', 'localhost', '::1'}
@@ -448,20 +455,73 @@ def with_person_voice(cfg, person_voice):
         return cfg
     if cfg["engine"] == "kokoro":
         return {**cfg, "kokoro": {**cfg["kokoro"], "voice": person_voice}}
+    if cfg["engine"] == "voicelab":
+        return {**cfg, "voicelab": {**cfg["voicelab"], "voice": person_voice}}
     return {**cfg, "edge_voice": person_voice}
 
 
-def synthesize_long(text, allow_cloud=None, voice_name=None, person_voice=None):
+def _lab_clips(chunks, cfg, person_voice, *, preview=False):
+    lab = cfg['voicelab']
+    found = voicelab.catalogue(lab['url'])
+    voices = found.voices
+    if not voices:
+        raise voicelab.LabUnavailable(voicelab.NO_VOICES)
+    names = {row['id'] for row in voices}
+    if preview and person_voice not in names:
+        raise voicelab.LabError('That voice is no longer ready in Voice Lab. Choose another voice.')
+    chosen = next((name for name in (person_voice, lab['voice']) if name in names), voicelab.default_voice(voices))
+    paths = []
+    for chunk in chunks:
+        path = _cache_path('voicelab', chosen, (found.url, found.library), chunk, '.wav')
+        if not os.path.exists(path):
+            data = voicelab.wav(found.url, chosen, chunk, limit=MAX_WAV_BYTES)
+            _write_atomic(path, data)
+        paths.append(path)
+    return paths
+
+
+def _lab_or_kokoro(chunks, cfg, person_voice, notice, preview):
+    from core import voice_service
+    try:
+        return _lab_clips(chunks, cfg, person_voice, preview=preview)
+    except voicelab.LabUnavailable as error:
+        local = {**cfg, 'engine': 'kokoro'}
+        if not preview and voice_service.kokoro_fallback_ready(local):
+            try:
+                paths = [_kokoro_clip(chunk, local) for chunk in chunks]
+            except TTSError:
+                pass
+            else:
+                if notice:
+                    notice(voicelab.FALLBACK)
+                return paths
+        raise TTSUnavailable(str(error)) from None
+    except voicelab.LabError as error:
+        raise TTSUnavailable(str(error)) from None
+
+
+def synthesize_long(text, allow_cloud=None, voice_name=None, person_voice=None, *, notice=None, preview=False):
     """Path of one audio file that speaks text (any length), or None if there is nothing to say.
 
     person_voice is the voice of whoever is speaking (empty: the configured voice). Raises TTSError when the chosen engine
     cannot make it (and the cloud fallback is off or not allowed).
     """
-    cfg = with_person_voice(settings(), person_voice)
+    cfg = settings()
     chunks = chunk_for_speech(text)
     if not chunks:
         return None
+    if cfg['engine'] == 'voicelab':
+        try:
+            paths = _lab_or_kokoro(chunks, cfg, person_voice, notice, preview)
+        except TTSUnavailable as error:
+            if notice:
+                notice(str(error))
+            raise
+        return paths[0] if len(paths) == 1 else _concat_wavs(paths)
+    cfg = with_person_voice(cfg, person_voice)
     if cfg["engine"] == "edge":
+        if not cloud_allowed(allow_cloud):
+            raise TTSUnavailable("Microsoft speech is unavailable while adult mode is on.")
         return generate_speech(" ".join(chunks), voice_name=voice_name or cfg["edge_voice"])
     try:
         paths = [_kokoro_clip(chunk, cfg) for chunk in chunks]

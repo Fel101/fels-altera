@@ -279,6 +279,8 @@ Source: [`engagement.py`](../core/routes/engagement.py).
 | `GET` | `/api/voice/status` | Read voice availability/state, including pending shutdown, without queueing startup. Private voice processing remains gated. |
 | `POST` | `/api/voice/toggle` | Toggle voice playback on/off for the current user. |
 | `POST` | `/api/voice/tts` | Generate speech for given text. |
+| `GET` | `/api/voice/lab` | Check Voice Lab's ready voice count, whether it is selected, and the message to show. |
+| `POST` | `/api/voice/engine` | Select `{"engine":"voicelab"}` for speech, or `{"engine":"kokoro"}` to use Altera's local Kokoro. |
 | `POST` | `/api/voice/activity` | Bounded local CPU speech detection without audio storage. |
 | `GET, POST` | `/api/voice-notes` | List by session or upload a context-bound recording. |
 | `GET` | `/api/voice-notes/context` | Capture session/owner/dataset/recall context. |

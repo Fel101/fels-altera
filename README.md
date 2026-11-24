@@ -45,8 +45,8 @@ shows which models fit. Small models are quicker but follow instructions less we
 [NPC Forge](https://github.com/Fel101/fels-npc-forge) paints portraits from descriptions and creates characters with
 personalities. You can also upload a picture, import a character card that has one, or use the pal's initial.
 
-Planned support for [Voice Lab](https://github.com/Fel101/fels-voice-lab) will let you give each pal a voice you
-design or choose there.
+Start Voice Lab and choose **Use Voice Lab for speech** in Setup or Settings. Each pal can use a ready Cast or preset
+voice from [Voice Lab](https://github.com/Fel101/fels-voice-lab).
 
 ## Start in five minutes
 
@@ -89,6 +89,8 @@ These are the only things that send anything out, and each one is a choice you m
   to answer.
 - **Microsoft's online voices** (edge-tts) receive the text of each reply they read aloud. Speech is off at first, and
   the starter setting is the local Kokoro voice. The cloud voice is never used while adult mode is on.
+- **Speech on a configured server** receives the text it speaks if you explicitly point Voice Lab or Kokoro at another
+  computer. Automatically discovered Voice Lab addresses use this PC. Voice Lab speech is opt-in.
 - **Web search and reading web pages** are off at first. When switched on, the search terms and addresses go to those
   sites.
 - **Pictures** go to the ComfyUI and vision-model servers you set up. Those are usually local, but not necessarily.

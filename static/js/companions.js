@@ -87,7 +87,7 @@ function renderCompanionList() {
 }
 
 /** The page opens on the companion you talked to last. Returns false when there is nobody (the default chat is used). */
-async function openCurrentCompanion() {
+async function openCurrentCompanion(voiceReady) {
     let current;
     const selection = Companion.selection;
     try {
@@ -101,7 +101,7 @@ async function openCurrentCompanion() {
         loadCompanions();
         return false;
     }
-    await enterCompanion(current.avatar);
+    await enterCompanion(current.avatar, voiceReady);
     return true;
 }
 
@@ -120,7 +120,7 @@ async function switchCompanion(id) {
 }
 
 /** Show a companion and her chat. A companion nobody has spoken with yet wakes up and says hello first. */
-async function enterCompanion(summary) {
+async function enterCompanion(summary, voiceReady) {
     if (typeof AlteraSharedScene !== 'undefined' && !AlteraSharedScene.prepareNavigation()) return;
     if (typeof endAutomaticRecordingForContextChange === 'function') endAutomaticRecordingForContextChange();
     if (typeof stopSpeech === 'function') stopSpeech();
@@ -139,7 +139,7 @@ async function enterCompanion(summary) {
     byId('messagesContainer').replaceChildren();
     loadCompanions();
     if (summary.messages === 0) {
-        await beginFirstMeeting(summary);
+        await beginFirstMeeting(summary, voiceReady);
     } else {
         await loadMessages(summary.session_id);
         if (selection !== Companion.selection) return;
@@ -209,7 +209,7 @@ function hideBirth() {
 }
 
 /** She has just been made: her picture fades in, she looks at herself, and she speaks first. */
-async function beginFirstMeeting(summary) {
+async function beginFirstMeeting(summary, voiceReady) {
     const overlay = byId('birthOverlay');
     setPortraitImage(byId('birthImg'), summary.id);
     byId('birthName').textContent = summary.name;
@@ -217,7 +217,7 @@ async function beginFirstMeeting(summary) {
     setBirthCaption(pal ? 'Saying hello…' : 'Waking up…');
     overlay.hidden = false;
     companionFrame(() => companionFrame(() => overlay.classList.add('show')));
-    await sleep(pal ? 700 : 2200);                                // let her appear before anything is said
+    await Promise.all([sleep(pal ? 700 : 2200), voiceReady]);      // show the arrival and load speech preferences before hello
     if (!companionViewOwner.active || Companion.current?.id !== summary.id || currentSessionId !== summary.session_id) return;
     isStreaming = true;
     updateSendButton(true);

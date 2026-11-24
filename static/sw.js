@@ -83,13 +83,14 @@
 // v102: the backup dialog's vault mode and the vault styles removed.
 // v103: the browser's vault mode removed (browser-state.js and the page scripts); companion messages are .message.companion.
 // v104: the setup page starts a provider on its own default model (setup.js).
-// v105: the setup page says how to install the local voice and that NPC Forge is not public yet (setup.js).
+// v105: the setup page says how to install the local voice and explains the optional NPC Forge tool (setup.js).
 // v106: the setup page shows NPC Forge as simply "Not running." and says pictures in the chat need ComfyUI (setup.js).
 // v107: the typing dots show the companion's own initial (not the old "H") and stay below your message (app.js); the
 // Voice switch in Settings turns the local voice on (app.js).
 // v108: About and its π (about.js); adult mode's settings move out of Settings into the box the π opens. Home: a voice
 // sample says why it stayed silent, and a portrait can come from NPC Forge's library or an upload (home.js).
-const CACHE_VERSION = 'v109';
+// v110: the setup page links to NPC Forge, and About links to all four Fel's Studio apps.
+const CACHE_VERSION = 'v110';
 const STATIC_CACHE = `altera-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `altera-dynamic-${CACHE_VERSION}`;
 

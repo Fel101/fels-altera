@@ -6,12 +6,12 @@
         {name: 'Speech', url: '/api/voice/status',
             up: data => Boolean(data.tts_enabled), on: () => 'Ready.', off: () => 'Off.',
             hint: 'Optional: install the local voice with voice\\setup.bat, then switch Voice on in Settings.'},
-        {name: 'NPC Forge', url: '/api/forge/status',
+        {name: 'NPC Forge', url: '/api/forge/status', link: 'https://github.com/Fel101/fels-npc-forge',
             up: data => Boolean(data.online),
             on: data => data.comfy_online ? 'Running, with ComfyUI.' : 'Running, but ComfyUI is not reachable.',
-            // Not the service's own "Start it" message: most people do not have NPC Forge, and the hint says why.
+            // The install link is useful even when the service is unavailable.
             off: () => 'Not running.',
-            hint: 'Optional, and not publicly available yet: it paints portraits and makes companions.'},
+            hint: 'Optional. Paints portraits from descriptions and creates characters with personalities.'},
         {name: 'ComfyUI', url: '/api/imagegen/status',
             up: data => Boolean((data.comfy || {}).online), on: () => 'Reachable.', off: () => 'Not running.',
             hint: 'Optional: pictures in the chat need it, and so does NPC Forge.'},
@@ -145,7 +145,16 @@
         function row(piece, data) {
             const item = doc.createElement('li');
             const label = doc.createElement('strong');
-            label.textContent = piece.name;
+            if (piece.link) {
+                const link = doc.createElement('a');
+                link.href = piece.link;
+                link.target = '_blank';
+                link.rel = 'noreferrer';
+                link.textContent = piece.name;
+                label.append(link);
+            } else {
+                label.textContent = piece.name;
+            }
             const line = doc.createElement('span');
             const up = Boolean(data && piece.up(data));
             line.className = 'setup-state ' + (data ? (up ? 'up' : 'down') : 'down');

@@ -111,6 +111,7 @@ test('the optional pieces are listed with what is up, and none of them blocks', 
     assert.match(text(byId.setupOptional.children[0]), /Speech\s+— Off/);
     assert.match(text(byId.setupOptional.children[1]), /NPC Forge\s+— Running, but ComfyUI is not reachable/);
     assert.match(text(byId.setupOptional.children[2]), /ComfyUI\s+— Not running/);
+    assert.match(template, /Planned support for <a href="https:\/\/github\.com\/Fel101\/fels-voice-lab"[^>]*>Voice Lab<\/a> will let you give each pal a voice/);
     assert.equal(byId.setupDone.disabled, false);
 });
 
@@ -120,10 +121,14 @@ test('NPC Forge that is not running is just "Not running", never an instruction 
         message: 'NPC Forge is not running. Start it, then try again.'}});
     const setup = load().start({doc, fetchImpl, navigate() {}, search: () => ''});
     await setup.loaded;
-    const forge = text(byId.setupOptional.children[1]);
-    assert.match(forge, /NPC Forge\s+— Not running\./);
-    assert.match(forge, /not publicly available yet/);
-    assert.doesNotMatch(forge, /Start it/);
+    const forge = byId.setupOptional.children[1];
+    const link = forge.children[0].children[0];
+    assert.equal(link?.tag, 'a');
+    assert.equal(link.textContent, 'NPC Forge');
+    assert.equal(link.href, 'https://github.com/Fel101/fels-npc-forge');
+    assert.match(text(forge), /NPC Forge\s+— Not running\./);
+    assert.match(text(forge), /paints portraits from descriptions and creates characters with personalities/i);
+    assert.doesNotMatch(text(forge), /Start it/);
     assert.match(text(byId.setupOptional.children[2]), /pictures in the chat need it/);
 });
 

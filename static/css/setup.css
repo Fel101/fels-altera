@@ -17,6 +17,7 @@
 .setup-list .setup-state.up { color: var(--accent); }
 .setup-list .setup-state.down { color: var(--text-secondary); }
 .setup-list .home-muted { margin: 2px 0 0; font-size: 12px; }
+.setup-card .setup-planned { margin: 12px 0 0; }
 .setup-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
 .setup-actions button { min-height: 44px; padding: 9px 16px; border-radius: 10px; font: inherit; cursor: pointer; }
 .setup-actions button:disabled { opacity: .55; cursor: default; }

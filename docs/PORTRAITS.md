@@ -1,6 +1,6 @@
 # Portraits from NPC Forge
 
-NPC Forge is a separate tool that is not publicly available yet. Altera works without it: make a pal, import a character card, or write a companion yourself, and upload a picture for any of them.
+[NPC Forge](https://github.com/Fel101/fels-npc-forge) is an optional app that paints portraits from descriptions and creates characters with personalities. In Altera, you can make a pal, import a character card, or write a companion yourself and upload a picture for any of them.
 
 A pal starts with no picture (Home shows its initial), a character has its card's picture or none for a `.json` card, and a
 companion written in Altera has none until one is uploaded or painted. Each of them can get a portrait three ways, under

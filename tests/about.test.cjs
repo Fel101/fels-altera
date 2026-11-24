@@ -51,6 +51,18 @@ test('Settings ends with an underlined About link, and adult mode is no longer i
     }
 });
 
+test("About describes Fel's Studio and links to all four apps", () => {
+    const about = page.slice(page.indexOf('id="aboutOverlay"'), page.indexOf('id="vaultOverlay"'));
+    assert.match(about, /Part of Fel's Studio/);
+    assert.deepEqual(Array.from(about.matchAll(/<a href="([^"]+)"[^>]*>([^<]+)<\/a>/g),
+        ([, url, label]) => [label, url]), [
+        ['Voice Slate', 'https://github.com/Fel101/fels-voice-slate'],
+        ['Voice Lab', 'https://github.com/Fel101/fels-voice-lab'],
+        ['NPC Forge', 'https://github.com/Fel101/fels-npc-forge'],
+        ['Altera', 'https://github.com/Fel101/Altera'],
+    ]);
+});
+
 test('About closes Settings and opens; the π plays the intro, then shows the settings', () => {
     const {root, byId, run} = load();
     root.openAbout();

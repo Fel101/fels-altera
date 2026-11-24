@@ -6,6 +6,12 @@ and the conversations, memories and notes stay in a folder on your machine.
 It talks to a chat model you run yourself, in LM Studio or Ollama. If you prefer, it can use a cloud service instead.
 Speech, pictures and a phone connection are optional extras.
 
+> **Part of Fel's Studio.** Four free apps that run on your own PC and work together.
+> [Voice Slate](https://github.com/Fel101/fels-voice-slate) records voices with consent,
+> [Voice Lab](https://github.com/Fel101/fels-voice-lab) designs and clones voices,
+> [NPC Forge](https://github.com/Fel101/fels-npc-forge) makes characters for games, and
+> [Altera](https://github.com/Fel101/Altera) lets you talk with them. Each one also works on its own.
+
 ![Home, with three pals](docs/images/home.png)
 
 ![A chat with a pal](docs/images/chat.png)
@@ -36,8 +42,11 @@ shows which models fit. Small models are quicker but follow instructions less we
 | [Pictures](docs/AVATARS_AND_ADULT_MODE.md) | Companions send pictures of themselves in the chat | Needs [ComfyUI](https://github.com/Comfy-Org/ComfyUI) and a strong GPU. On a 32 GB GPU, a picture took about 50 s with Mage-Flow-Edit and 35 s with Qwen-Image-Edit. The heaviest engines need about 29 GB of free video memory |
 | [Phone access](docs/ANDROID_TAILSCALE.md) | The same chats on your phone | A free [Tailscale](https://tailscale.com) account |
 
-Portraits painted from a description come from NPC Forge, a separate tool that isn't publicly available yet. Without
-it you can upload a picture, import a character card that has one, or use the pal's initial.
+[NPC Forge](https://github.com/Fel101/fels-npc-forge) paints portraits from descriptions and creates characters with
+personalities. You can also upload a picture, import a character card that has one, or use the pal's initial.
+
+Planned support for [Voice Lab](https://github.com/Fel101/fels-voice-lab) will let you give each pal a voice you
+design or choose there.
 
 ## Start in five minutes
 
@@ -137,7 +146,7 @@ anything made with them. [Licensing](docs/README.md#licensing) lists what each p
   longer to start answering.
 - **The local voice is slow on a CPU.** A GPU helps, but has to be switched on, and one GPU build crashed during testing
   ([Voice](docs/VOICE.md#a-local-voice)).
-- **Pictures need a strong GPU**, and portraits painted from a description need NPC Forge, which isn't public yet.
+- **Pictures need a strong GPU**, and painting a portrait from a description uses [NPC Forge](https://github.com/Fel101/fels-npc-forge).
 - **After an update**, close Altera's other tabs and reload, so the browser picks up the new version.
 
 ## Problems and questions

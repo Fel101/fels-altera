@@ -2,7 +2,7 @@
 
 Altera is a local-first companion app with streaming chat, separate companions, vector memories, editable notebooks, optional speech, and pictures from NPC Forge. Conversations are stored on your PC. Selected cloud model, speech and web services receive the content sent to them.
 
-Only a chat model is required. Speech, NPC Forge and ComfyUI are optional. NPC Forge is a separate tool that is not publicly available yet. Altera works without it: make a pal, import a character card, or write a companion yourself and upload its picture.
+Only a chat model is required. Speech, NPC Forge and ComfyUI are optional. [NPC Forge](https://github.com/Fel101/fels-npc-forge) paints portraits from descriptions and creates characters with personalities. You can make a pal, import a character card, or write a companion yourself and upload a picture right in Altera.
 
 ## Documentation
 

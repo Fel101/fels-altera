@@ -2,7 +2,7 @@
 
 Reviewed 2026-10-26. Hardware timings below are historical observations, not current performance guarantees. The portable starter disables image generation; existing instance settings may differ.
 
-NPC Forge is a separate tool that is not publicly available yet. Altera works without it: make a pal, import a character card, or write a companion yourself and upload its picture. Pictures in the chat also need ComfyUI.
+[NPC Forge](https://github.com/Fel101/fels-npc-forge) is an optional app that paints portraits from descriptions and creates characters with personalities. You can make a pal, import a character card, or write a companion yourself and upload a picture right in Altera. Pictures in the chat also need ComfyUI.
 
 > Every avatar is now a **companion** with a chat, notes and memories of her own, and NPC Forge also gives her personality; the
 > studio's approved pictures are fetched automatically and used before anything new is made. See [COMPANIONS.md](COMPANIONS.md).

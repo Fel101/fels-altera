@@ -207,6 +207,7 @@
 
 /* About, and the π in its corner: small and quiet, for whoever goes looking (about.js) */
 .about-modal { position: relative; }
+.about-modal a { color: var(--accent); text-underline-offset: 3px; }
 .about-pi {
     position: absolute;
     right: 10px;

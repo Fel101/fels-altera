@@ -1,7 +1,7 @@
 """
 Altera — NPC Forge, where every companion is made.
 
-Altera talks to NPC Forge's local web server (default http://127.0.0.1:8765) to make someone new: it asks for a "Models" character
+Altera discovers NPC Forge's local web server to make someone new: it asks for a "Models" character
 (an adult woman with a personality, made from the shared tables), waits for the portrait, and then imports her like any other
 avatar (core/avatars.py reads the character from Forge's library folder and the age check runs). Characters made by hand in NPC
 Forge are imported the same way.
@@ -9,10 +9,10 @@ Forge are imported the same way.
 Pals and characters can have a portrait painted by NPC Forge too (core/portraits.py): from a description, or redrawn from a
 card's picture. Those use NPC Forge's ordinary settings, never the adult "models" one, and need no 18+ box.
 
-From NPC Forge's API 44 on, a picture is only queued once GET /api/gpu says the GPU is free: when LM Studio's server is what
-holds it, Altera unloads LM Studio's model first (companion.forge.unload_llm, on by default); otherwise it says what to do
-(start or restart ComfyUI, wait for its other job). Its jobs say why they failed with a `code`, and stop by themselves when the
-GPU is taken. Older NPC Forge versions are read from their error texts as before.
+From NPC Forge's API 44 on, Altera checks GET /api/gpu before queuing a picture. Suite Forge coordinates exclusive use
+itself. With the older GPU API, Altera can first unload local chat models (companion.forge.unload_llm, on by default).
+When ComfyUI or another program needs attention, Altera reports the blocker. Older NPC Forge versions report GPU errors
+in their job text.
 
 Only loopback literals and the localhost name are accepted: NPC Forge is a local tool that spends GPU time and deletes files.
 The operating system resolves localhost.
@@ -33,9 +33,11 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+from core import fels_suite
+
 LOGGER = logging.getLogger(__name__)
 
-DEFAULT_URL = "http://127.0.0.1:8765"
+DEFAULT_URL = f"http://127.0.0.1:{fels_suite.PORTS['npc-forge']}"
 REQUIRED_API = 4                       # the NPC Forge API version that has personalities (speech, demeanor)
 GPU_API = 44                           # GET /api/gpu, job and step `code`, gpu_busy `holders`, roll `adult`, an empty surname
 SETTING = "models"                     # the setting made for Altera: adult women, ordinary clothes, photoreal
@@ -46,9 +48,9 @@ MAX_PHOTO_BYTES = 1_400_000            # NPC Forge reads at most 2 MB of request
 MAX_DESCRIPTION = 1500                 # NPC Forge keeps this much of a free description
 GENDERS = ("female", "male", "nonbinary")
 GPU_BUSY = "one model on the GPU at a time"   # before API 44: in NPC Forge's refusal when something else holds the GPU
-GPU_SETTLE_S = 15                      # how long LM Studio gets to hand the GPU back after its model is unloaded
+GPU_SETTLE_S = 15                      # how long local models get to hand back the GPU after unloading
 COMFY_BUSY_CHECKS = 2
-_LM_STUDIO = re.compile(r"llama-server|lm ?studio|^lms(\.exe)?$", re.I)    # LM Studio's processes, as /api/gpu names them
+_CHAT_PROCESS = re.compile(r"llama-server|lm ?studio|^lms(\.exe)?$|ollama", re.I)
 GPU_ADVICE = {
     "comfy_down": "ComfyUI is not running, so NPC Forge cannot paint. Start ComfyUI, then try again.",
     "comfy_busy": "ComfyUI is busy with another job. Try again when it is done.",
@@ -70,23 +72,33 @@ def adult_lead(text) -> str:
     return "a grown adult, " + re.sub(r"^(A|An|The)(?=\s)", lambda m: m.group(1).lower(), text)
 
 
-def lm_studio_holds(holders) -> bool:
-    """Whether LM Studio is among the programs /api/gpu or a gpu_busy step says hold the GPU."""
-    return any(isinstance(h, dict) and _LM_STUDIO.search(str(h.get("name") or "")) for h in (holders or []))
-
-
 def _unload_llm() -> bool:
     from core.llm import unload_models
     return unload_models()
+
+
+def _holder_names(holders):
+    return list(dict.fromkeys(h["name"] for h in (holders or [])
+                              if isinstance(h, dict) and isinstance(h.get("name"), str) and h["name"]))
 
 
 class ForgeError(RuntimeError):
     """Something the person can act on; the message is safe to show."""
 
 
+class ForgeNotListening(ForgeError):
+    pass
+
+
+class ForgeHTTPError(ForgeError):
+    def __init__(self, status):
+        self.status = status
+        super().__init__(f"NPC Forge answered with an error (HTTP {status}).")
+
+
 def settings(config=None) -> dict:
     cfg = ((config or {}).get("companion") or {}).get("forge") or {}
-    return {"url": str(cfg.get("url") or DEFAULT_URL).rstrip("/"), "timeout": float(cfg.get("timeout_s") or 4)}
+    return {"url": str(cfg.get("url") or "").rstrip("/"), "timeout": float(cfg.get("timeout_s") or 4)}
 
 
 def is_loopback(url: str) -> bool:
@@ -112,20 +124,65 @@ class ForgeClient:
     def __init__(self, config=None, opener=None, unload=None, sleep=None):
         self.config = config or {}
         cfg = settings(self.config)
-        self.url, self.timeout = cfg["url"], cfg["timeout"]
+        self._given, self.timeout = cfg["url"], cfg["timeout"]
+        self.url = self._given or DEFAULT_URL
         self._open = opener
         forge_cfg = ((self.config.get("companion") or {}).get("forge") or {})
         self.unload_llm = forge_cfg.get("unload_llm", True) is not False
         self._unload = unload or _unload_llm
         self._sleep = sleep or time.sleep
         self._api_version = None
+        self._discovery = None
 
     # ---- plumbing -------------------------------------------------------------------------------------------------
     def _call(self, method: str, path: str, body: dict | None = None, timeout: float | None = None):
-        if not is_loopback(self.url):
+        self._discover()
+        return self._request_at(self.url, method, path, body, timeout)
+
+    def _discover(self):
+        if self._discovery is not None:
+            return self._discovery
+        if self._given and not is_loopback(self._given):
+            raise ForgeError("NPC Forge must be on this computer (127.0.0.1).")
+        problems = []
+
+        def ask(url):
+            try:
+                health = self._ask_health(url)
+            except ForgeNotListening:
+                return None
+            except ForgeError as error:
+                problems.append(str(error))
+                return None
+            found = fels_suite.identify(health)
+            if found != "npc-forge":
+                name = fels_suite.short_name(found) if found else "another program"
+                problems.append(f"{name} answered at the NPC Forge address. Check the address in config.yaml.")
+            return health
+
+        found = fels_suite.find_app("npc-forge", ask=ask, given=self._given)
+        if not found["url"]:
+            if problems:
+                raise ForgeError(problems[0])
+            raise ForgeNotListening("NPC Forge is not running. Start it, then try again.")
+        self.url = found["url"]
+        self._discovery = found
+        return found
+
+    def _ask_health(self, url):
+        timeout = min(self.timeout, 2.5)
+        try:
+            return self._request_at(url, "GET", "/api/health?identity=1", timeout=timeout)
+        except ForgeHTTPError as error:
+            if error.status not in {400, 404}:
+                raise
+        return self._request_at(url, "GET", "/api/health", timeout=timeout)
+
+    def _request_at(self, url, method, path, body=None, timeout=None):
+        if not is_loopback(url):
             raise ForgeError("NPC Forge must be on this computer (127.0.0.1).")
         data = json.dumps(body).encode("utf-8") if body is not None else (b"{}" if method != "GET" else None)
-        request = urllib.request.Request(self.url + path, data=data, method=method,
+        request = urllib.request.Request(url + path, data=data, method=method,
                                          headers={"Content-Type": "application/json"} if method != "GET" else {})
         try:
             open_request = self._open or urllib.request.build_opener(
@@ -143,9 +200,11 @@ class ForgeClient:
         except urllib.error.HTTPError as e:
             code = e.code
             e.close()
-            raise ForgeError(f"NPC Forge answered with an error (HTTP {code}).") from None
-        except (urllib.error.URLError, OSError):
-            raise ForgeError("NPC Forge is not running. Start it, then try again.") from None
+            raise ForgeHTTPError(code) from None
+        except OSError as error:
+            if isinstance(getattr(error, "reason", error), ConnectionRefusedError):
+                raise ForgeNotListening("NPC Forge is not running. Start it, then try again.") from None
+            raise ForgeError("Could not reach NPC Forge. Check its address and try again.") from None
         except (http.client.HTTPException, ValueError, UnicodeError):
             raise ForgeError("NPC Forge returned an invalid or oversized response.") from None
 
@@ -153,11 +212,18 @@ class ForgeClient:
     def status(self) -> dict:
         """{online, api_version, outdated, models, comfy_online, message, options}. Never raises."""
         out = {"online": False, "api_version": None, "outdated": False, "models": False, "comfy_online": None,
-               "message": "", "options": {}, "url": self.url, "styles": [], "settings": [],
+               "message": "", "not_running": False, "options": {}, "url": self.url, "styles": [], "settings": [],
                "engines": {"image": [], "edit": []}, "default_engines": {"image": "", "edit": ""}}
         try:
-            cfg = self._call("GET", "/api/config", timeout=min(self.timeout, 2.5))
+            found = self._discover()
+            out.update(online=True, url=self.url, comfy_online=found["health"].get("online"),
+                       notices=[note for note in found["notes"] if note.startswith("That address")])
+            cfg = self._request_at(self.url, "GET", "/api/config", timeout=min(self.timeout, 2.5))
+            if not isinstance(cfg, dict) or type(cfg.get("api_version")) is not int:
+                raise ForgeError("NPC Forge returned an invalid configuration. Restart it and try again.")
         except ForgeError as e:
+            out["online"] = False
+            out["not_running"] = isinstance(e, ForgeNotListening)
             out["message"] = str(e)
             return out
         out["online"] = True
@@ -187,10 +253,11 @@ class ForgeClient:
                 "hair_colors": list(setting.get("hair_colors") or []),
                 "age_groups": [{"id": a["id"], "label": a["label"]} for a in setting.get("age_groups") or []],
             }
-        try:
-            out["comfy_online"] = bool(self._call("GET", "/api/health", timeout=2.5).get("online"))
-        except ForgeError:
-            out["comfy_online"] = None
+        if out["comfy_online"] is None:
+            try:
+                out["comfy_online"] = self._request_at(self.url, "GET", "/api/health", timeout=2.5).get("online")
+            except (ForgeError, AttributeError):
+                pass
         if not setting:
             out["message"] = ("NPC Forge has no Models setting right now. Open NPC Forge, choose About, and tick the 18+ box "
                               "(the Models setting appears once it is ticked).")
@@ -215,15 +282,15 @@ class ForgeClient:
         return answer if isinstance(answer, dict) else None
 
     def free_gpu(self, holders) -> bool:
-        """Unload LM Studio's model when it is among `holders` (and unloading is allowed). True when it was asked to."""
-        if not self.unload_llm or not lm_studio_holds(holders):
+        """For legacy Forge, unload the local chat models when they hold the GPU and the user permits it."""
+        if (not self.unload_llm or (self._discovery and self._discovery["health"].get("fels"))
+                or not any(_CHAT_PROCESS.search(name) for name in _holder_names(holders))):
             return False
-        LOGGER.info("LM Studio holds the GPU NPC Forge needs: unloading its model")
+        LOGGER.info("Local chat models hold the GPU NPC Forge needs: asking them to unload")
         return bool(self._unload())
 
     def ready_gpu(self, status, *, require_ready=False) -> None:
-        """Before queueing a picture: make sure the GPU is free, or raise ForgeError saying what to do. LM Studio's model is
-        unloaded when that is what holds it. Nothing is checked with an NPC Forge older than API 44."""
+        """Check GPU readiness before queueing, with legacy model cleanup when needed."""
         if not self.modern(status):
             return
         gpu = self.gpu()
@@ -237,6 +304,8 @@ class ForgeClient:
                 raise ForgeError("Could not confirm that ComfyUI is ready. Check ComfyUI and try again.")
             return
         code = gpu.get("code")
+        if code == "gpu_busy" and isinstance(gpu.get("suite_lock"), dict) and gpu.get("one_model_at_a_time"):
+            return  # Suite Forge queues the work, then makes room for it with the shared lock protocol.
         if code == "gpu_busy" and self.free_gpu(gpu.get("holders")):
             for _ in range(GPU_SETTLE_S):
                 self._sleep(1)
@@ -249,10 +318,20 @@ class ForgeClient:
                         break
             code = gpu.get("code")
         message = str(gpu.get("message") or "").strip()
+        holders = _holder_names(gpu.get("holders"))
+        names = ", ".join(holders)
         if code in GPU_ADVICE:
-            raise ForgeError(GPU_ADVICE[code] + (f" (NPC Forge: {message})" if message else ""))
-        if code == "gpu_busy" and lm_studio_holds(gpu.get("holders")):
-            raise ForgeError((message or "LM Studio holds the GPU.") + " Unload its model in LM Studio, then try again.")
+            message = GPU_ADVICE[code] + (f" (NPC Forge: {message})" if message else "")
+        elif code == "gpu_busy" and names:
+            message = (message + " " if message else "") + f"Current GPU use: {names}."
+            tools = ["Ollama" if "ollama" in name.lower() else "LM Studio" for name in holders if _CHAT_PROCESS.search(name)]
+            if tools:
+                message += f" Unload its model in {' or '.join(dict.fromkeys(tools))}, then try again."
+            else:
+                message += " Wait for the work to finish, then try again."
+            names = ""
+        if names:
+            message += f" Current GPU use: {names}."
         raise ForgeError(message or "The GPU is not free for NPC Forge right now. Try again in a moment.")
 
     def retry(self, job_id) -> None:
@@ -466,18 +545,23 @@ def _forge_python(config=None):
 
 
 def start(config=None) -> dict:
-    """Start NPC Forge if nothing is listening on its port. It keeps running after Altera stops. Returns {started, message}."""
-    cfg = settings(config)
-    if not is_loopback(cfg["url"]):
-        return {"started": False, "message": "NPC Forge must be on this computer."}
-    if _port_open(cfg["url"]):
-        return {"started": False, "message": "NPC Forge is already running."}   # a second copy would share its port and steal requests
+    """Start NPC Forge on its configured or suite port if it is not already running."""
+    client = ForgeClient(config)
+    try:
+        client._discover()
+    except ForgeError as error:
+        if not is_loopback(client.url):
+            return {"started": False, "message": str(error)}
+        if _port_open(client.url):
+            return {"started": False, "message": f"The NPC Forge port is already in use. {error}"}
+    else:
+        return {"started": False, "message": "NPC Forge is already running."}
     folder = forge_folder(config)
     python = _forge_python(config) if folder else None
     if not folder or not python:
         return {"started": False, "message": "Could not find NPC Forge's folder, or a Python that has Pillow and numpy. "
                                              "Start NPC Forge yourself (start.bat)."}
-    port = urllib.parse.urlparse(cfg["url"]).port or 8765
+    port = urllib.parse.urlparse(client.url).port or fels_suite.PORTS["npc-forge"]
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0
     try:
         subprocess.Popen(python + ["server.py", "--port", str(port)], cwd=str(folder), creationflags=flags,

@@ -216,6 +216,17 @@ def test_lm_studio_is_left_alone_when_unloading_is_switched_off_or_does_not_free
     assert unloaded == [True]
 
 
+def test_suite_forge_queues_pictures_and_makes_room_for_them_itself():
+    busy = {"ready": False, "code": "gpu_busy", "holders": LM_STUDIO, "one_model_at_a_time": True,
+            "suite_lock": {"holders": [], "alone": None}}
+    health = forge.fels_suite.health_block("npc-forge", "1.1.0", 44)
+    log = []
+    client, unloaded = modern_client([busy], log, **{"GET /api/health": {"online": True, "fels": health}})
+    client.paint(name="Pip", description="Red hair.", style="anime", setting="modern")
+    assert any(key == "POST /api/roll" for key, _ in log)
+    assert unloaded == []
+
+
 def test_an_older_npc_forge_is_not_asked_about_the_gpu_and_an_unreadable_answer_does_not_block():
     log = []
     forge.ForgeClient({}, opener=fake_opener(forge_routes(), log)).living(NPC)

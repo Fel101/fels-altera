@@ -8,17 +8,15 @@ Supports dynamic model/provider switching via ProviderRegistry.
 
 import json
 import logging
-import os
 import re
-import shutil
-import subprocess
 import time
 import threading
-from pathlib import Path
+from contextlib import ExitStack
 from urllib.parse import urlsplit
 
 from core.providers import ProviderRegistry, get_provider_registry
 from core.owned_iterator import close_owned, owned_iterator
+from core import suite_gpu
 
 
 # ============================================================
@@ -258,19 +256,19 @@ class LLMClient:
             def managed():
                 if turn:
                     turn.check_cancelled()
-                client, transport = create_client()
-                try:
+                with ExitStack() as stack:
+                    suite_gpu.protect_model(self, stack)
+                    client, transport = create_client()
+                    stack.callback(release, client, transport)
                     if turn:
                         turn.check_cancelled()
                     yield from self._chat_stream(client, messages, tools=tools, tool_executor=tool_executor)
-                finally:
-                    release(client, transport)
             return managed()
-        client, transport = create_client()
-        try:
+        with ExitStack() as stack:
+            suite_gpu.protect_model(self, stack)
+            client, transport = create_client()
+            stack.callback(release, client, transport)
             return self._chat_with_retry(client, messages, tools=tools, tool_executor=tool_executor)
-        finally:
-            release(client, transport)
 
     def _chat_with_retry(self, client, messages: list[dict], tools=None, tool_executor=None) -> str:
         """Chat with retry logic for transient failures."""
@@ -528,29 +526,13 @@ def ask(system: str, prompt: str, temperature: float | None = None, max_tokens: 
     return _THINK.sub("", reply or "").strip()
 
 
-def _default_lms_path() -> str | None:
-    """LM Studio installs its CLI here even when it is not on PATH."""
-    candidate = Path.home() / ".lmstudio" / "bin" / ("lms.exe" if os.name == "nt" else "lms")
-    return str(candidate) if candidate.is_file() else None
-
-
 def unload_models(timeout: float = 20.0) -> bool:
-    """Ask LM Studio to unload every model it has loaded, freeing RAM/VRAM for something else. core/photos.py calls this
-    before generating a picture: Qwen-Image-Edit needs 36 GB of free RAM (imagegen.workflows in config.yaml) and even the
-    Mage-Flow-Edit fallback wants more room than a loaded chat model leaves it. Best effort, through LM Studio's own `lms`
-    CLI: if it cannot be found or the command fails, this logs a warning and returns False rather than raising -- a picture
-    must still be attempted. The next chat reply just loads the model again, more slowly.
-    """
-    lms = shutil.which("lms") or _default_lms_path()
-    if not lms:
-        LOGGER.warning("Could not find LM Studio's `lms` CLI; not unloading its model before generating a picture.")
-        return False
-    try:
-        subprocess.run([lms, "unload", "--all"], capture_output=True, text=True, timeout=timeout, check=True)
-        return True
-    except Exception as e:
-        LOGGER.warning("Could not unload LM Studio's model: %s", e)
-        return False
+    """Best-effort local LM Studio and Ollama cleanup before an image request."""
+    results = suite_gpu.unload_outside(timeout)
+    for result in results:
+        if result["problem"]:
+            LOGGER.warning("%s", result["problem"])
+    return any(result["done"] for result in results)
 
 
 def reset_llm_instance():

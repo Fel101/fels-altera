@@ -1,8 +1,9 @@
 """Reachability checks and conversation starters."""
 from datetime import datetime
 from flask import Blueprint, current_app, jsonify, request
-from core.fels_suite import health_block
+from core import fels_suite, voice_service
 from core.health import HealthService
+from core.remote_access import direct_local_request
 from core.version import SUITE_API, VERSION
 
 bp = Blueprint('system', __name__)
@@ -10,7 +11,34 @@ bp = Blueprint('system', __name__)
 
 @bp.get('/api/health')
 def suite_health():
-    return jsonify(ok=True, fels=health_block('altera', VERSION, SUITE_API)), 200, {'Cache-Control': 'no-store'}
+    return jsonify(ok=True, fels=fels_suite.health_block('altera', VERSION, SUITE_API)), 200, {'Cache-Control': 'no-store'}
+
+
+@bp.get('/api/gpu')
+def suite_gpu_status():
+    status = fels_suite.gpu_status()
+    holders = [{**{key: holder.get(key) for key in ('what', 'since', 'alone')},
+                'name': fels_suite.short_name(holder['app'])} for holder in status['holders']]
+    alone = next((holder for holder in holders if holder['alone']), None)
+    pending = status['alone']
+    waiting = None if alone or not pending else {
+        'name': fels_suite.short_name(pending['app']), 'what': pending.get('what'), 'since': pending.get('since')}
+    return jsonify(state='alone' if alone else 'shared' if holders else 'free',
+                   holders=holders, waiting=waiting), 200, {'Cache-Control': 'no-store'}
+
+
+@bp.post('/api/unload')
+def suite_unload():
+    headers = request.headers
+    if (not direct_local_request() or 'Origin' in headers or 'Referer' in headers
+            or any(name.lower().startswith('sec-fetch-') for name in headers.keys())):
+        return jsonify(error='Only local apps can ask Altera to free the GPU.', code='local_only'), 403
+    if not request.is_json:
+        return jsonify(error='Send a JSON request.', code='json_required'), 415
+    doing = voice_service.unload_gpu()
+    if doing:
+        return jsonify(error=f'Altera is {doing}. Try again when it is done.', code='busy', doing=doing), 409
+    return jsonify(ok=True)
 
 
 @bp.get('/api/health/details')

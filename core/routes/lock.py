@@ -200,7 +200,7 @@ def install_lock_guard(app):
     @app.before_request
     def enforce_lock():
         endpoint = request.endpoint or ""
-        if endpoint in {"static", "pages.service_worker", "system.suite_health"} or endpoint.startswith("lock."):
+        if endpoint in {"static", "pages.service_worker", "system.suite_health", "system.suite_unload"} or endpoint.startswith("lock."):
             return None
         if lock.in_kids_view():
             if endpoint == "pages.index":

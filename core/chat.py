@@ -12,9 +12,10 @@ import json
 import logging
 import re
 import threading
+from contextlib import ExitStack
 from dataclasses import dataclass, field
 
-from core import adult, companions, photo_tags, safety
+from core import adult, companions, photo_tags, safety, suite_gpu
 from core import notes as notes_module
 from core import photos as photos_module
 from core.turns import CURRENT_TURN, EmptyReply
@@ -494,12 +495,14 @@ class ChatEngine:
 
     def _call_llm(self, messages: list[dict], session_id: int, allow_tools: bool = True, client=None) -> str:
         """Call the LLM with serialized access and handle tool calls."""
-        # Detect function calling support on first call
-        tools = [WEB_SEARCH_TOOL] if allow_tools and self._tools_for_this_backend() else None
         client = client or self.llm_client
 
         try:
-            with self._llm_lock:
+            with ExitStack() as stack:
+                for _event in suite_gpu.wait_for_reply(client, CURRENT_TURN.get(), stack):
+                    pass  # synchronous callers receive the final reply
+                tools = [WEB_SEARCH_TOOL] if allow_tools and self._tools_for_this_backend() else None
+                stack.enter_context(self._llm_lock)
                 for attempt in range(1 + EMPTY_REPLY_RETRIES):
                     reply = client.chat(
                         messages,
@@ -511,6 +514,8 @@ class ChatEngine:
                         break
                     LOGGER.warning("The model returned no visible reply; asking once more: session_id=%r", session_id)
                 return reply
+        except (InterruptedError, suite_gpu.GpuWaitError):
+            raise
         except Exception as e:
             error_msg = "Error connecting to LM Studio"
             LOGGER.exception(error_msg)
@@ -525,8 +530,6 @@ class ChatEngine:
         if CURRENT_TURN.get():
             CURRENT_TURN.get().check_cancelled()
         client = client or self.llm_client
-        # Detect function calling support on first call (a fixed reply never reaches the model, so it never probes it)
-        tools = [WEB_SEARCH_TOOL] if allow_tools and fixed_reply is None and self._tools_for_this_backend() else None
         # Save assistant message to DB inside generator (request context gone in Flask 3.x generators)
         def generate():
             LOGGER.debug("Inner stream generator started: session_id=%r", session_id)
@@ -536,46 +539,51 @@ class ChatEngine:
             tags = photo_tags.TagFilter()
             chunk_count = 0
             try:
-                # A reasoning model now and then answers with its thinking alone, or stops at once: nothing was shown yet,
-                # so it is asked once more before the turn counts as failed.
-                attempts = 1 if fixed_reply is not None else 1 + EMPTY_REPLY_RETRIES
-                for attempt in range(attempts):
-                    LOGGER.debug("Calling LLM stream: tools=%s attempt=%s", bool(tools), attempt + 1)
-                    # A character's first message is the card's own text: it streams like a reply, without a model call
-                    source = iter([fixed_reply]) if fixed_reply is not None else client.chat(
-                        messages,
-                        stream=True,
-                        tools=tools,
-                        tool_executor=self._execute_tool_call if tools else None,
-                    )
-                    with owned_iterator(source) as chunks:
-                        for chunk in chunks:
-                            if CURRENT_TURN.get():
-                                CURRENT_TURN.get().check_cancelled()
-                            if isinstance(chunk, str):
-                                # Aggregate completion has an explicit type: ordinary deltas can
-                                # legitimately repeat all the text seen so far ("ha", "ha", "!").
-                                if isinstance(chunk, StreamComplete):
-                                    LOGGER.debug("Skipped final duplicate stream chunk: chars=%s", len(chunk))
-                                    break  # Skip duplicate of final full response
-                                chunk_count += 1
-                                full_response += chunk
-                                shown = tags.feed(chunk)
-                                if shown:
-                                    visible += shown
-                                    if guard is None:
-                                        yield shown  # Yield raw text only; caller wraps in SSE
+                with ExitStack() as stack:
+                    if fixed_reply is None:
+                        yield from suite_gpu.wait_for_reply(client, CURRENT_TURN.get(), stack)
+                    tools = [WEB_SEARCH_TOOL] if allow_tools and fixed_reply is None and self._tools_for_this_backend() else None
+                    # A reasoning model now and then answers with its thinking alone, or stops at once: nothing was shown yet,
+                    # so it is asked once more before the turn counts as failed.
+                    attempts = 1 if fixed_reply is not None else 1 + EMPTY_REPLY_RETRIES
+                    for attempt in range(attempts):
+                        LOGGER.debug("Calling LLM stream: tools=%s attempt=%s", bool(tools), attempt + 1)
+                        # A character's first message is the card's own text: it streams like a reply, without a model call
+                        source = iter([fixed_reply]) if fixed_reply is not None else client.chat(
+                            messages,
+                            stream=True,
+                            tools=tools,
+                            tool_executor=self._execute_tool_call if tools else None,
+                        )
+                        with owned_iterator(source) as chunks:
+                            for chunk in chunks:
+                                if CURRENT_TURN.get():
+                                    CURRENT_TURN.get().check_cancelled()
+                                if isinstance(chunk, str):
+                                    # Aggregate completion has an explicit type: ordinary deltas can
+                                    # legitimately repeat all the text seen so far ("ha", "ha", "!").
+                                    if isinstance(chunk, StreamComplete):
+                                        LOGGER.debug("Skipped final duplicate stream chunk: chars=%s", len(chunk))
+                                        break  # Skip duplicate of final full response
+                                    chunk_count += 1
+                                    full_response += chunk
+                                    shown = tags.feed(chunk)
+                                    if shown:
+                                        visible += shown
+                                        if guard is None:
+                                            yield shown  # Yield raw text only; caller wraps in SSE
 
-                    tail = tags.flush()
-                    if tail:
-                        visible += tail
-                        if guard is None:
-                            yield tail
-                    if visible.strip() or tags.tags or attempt + 1 == attempts:
-                        break
-                    LOGGER.warning("The model returned no visible reply; asking once more: session_id=%r", session_id)
-                    if CURRENT_TURN.get():
-                        CURRENT_TURN.get().check_cancelled()
+                        tail = tags.flush()
+                        if tail:
+                            visible += tail
+                            if guard is None:
+                                yield tail
+                        if visible.strip() or tags.tags or attempt + 1 == attempts:
+                            break
+                        LOGGER.warning("The model returned no visible reply; asking once more: session_id=%r", session_id)
+                        if CURRENT_TURN.get():
+                            CURRENT_TURN.get().check_cancelled()
+                # The suite GPU lock is released before asking Forge to make a picture.
                 if guard is not None:
                     instead = guard(visible)
                     if instead:
@@ -603,7 +611,7 @@ class ChatEngine:
                 if started:
                     yield {"notes": started}
 
-            except InterruptedError:
+            except (InterruptedError, suite_gpu.GpuWaitError):
                 raise
             except Exception:
                 if CURRENT_TURN.get() and CURRENT_TURN.get().cancel.is_set():

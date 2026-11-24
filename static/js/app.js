@@ -71,12 +71,50 @@ AlteraPage.ready(() => MainUI.run(async () => {
         checkOnboarding();
         checkSystemHealth();
         healthInterval = MainUI.every(() => { if (!document.hidden) checkSystemHealth(); }, 30000);
+        checkSuiteGpu();
+        MainUI.every(() => { if (!document.hidden) checkSuiteGpu(); }, 5000);
         refreshWorkspaceFiles(false);
     }
     updateSessionSignal();
     checkConnection();
     connectionInterval = MainUI.every(() => { if (!document.hidden) checkConnection(); }, 15000);
 }));
+
+async function checkSuiteGpu() {
+    const light = document.getElementById('gpuLight');
+    if (!light) return;
+    let state = 'unknown';
+    let lines = ['GPU status is unavailable.'];
+    try {
+        const {res, data} = await MainUI.json('/api/gpu', {cache: 'no-store', timeoutMs: 3000});
+        if (res.ok && ['free', 'shared', 'alone'].includes(data.state)) {
+            state = data.state;
+            const line = (holder, mode) => {
+                const date = new Date(holder.since);
+                const since = holder.since && Number.isFinite(date.getTime()) ? ' since ' + date.toLocaleString() : '';
+                return `${holder.name}${mode}: ${holder.what || 'model'}${since}`;
+            };
+            lines = data.holders.map(holder => line(holder, holder.alone ? ', alone' : ''));
+            if (data.waiting) lines.push(line(data.waiting, ' is making room'));
+            if (!lines.length) lines.push('The suite GPU lock is free.');
+        }
+    } catch (error) {
+        if (!MainUI.active) return;
+    }
+    if (!MainUI.active) return;
+    const label = document.getElementById('gpuLightLabel');
+    const holders = document.getElementById('gpuLightHolders');
+    light.dataset.state = state;
+    label.textContent = {free: 'GPU free', shared: 'GPU shared', alone: 'GPU alone', unknown: 'GPU status'}[state];
+    light.querySelector('summary').title = lines.join('\n');
+    if ([...holders.children].map(item => item.textContent).join('\n') !== lines.join('\n')) {
+        holders.replaceChildren(...lines.map(text => {
+            const row = document.createElement('li');
+            row.textContent = text;
+            return row;
+        }));
+    }
+}
 
 function connectionStatusText() {
     return ({connected: 'Connected to Altera', checking: 'Connecting...',
@@ -1623,7 +1661,16 @@ async function readChatStream(payload, hooks, replaying, turn) {
             const draft = document.getElementById('streamingMsg');
             if (draft) draft.dataset.speechRequestId = payload.request_id;
             if (hooks.onText) hooks.onText(fullResponse);
+        } else if (data.status === 'gpu_wait') {
+            const typing = document.getElementById('typingIndicator');
+            if (!typing) showTypingIndicator();
+            const waiting = document.querySelector('#typingIndicator .gpu-wait');
+            if (waiting) waiting.textContent = data.message;
+            updateTypingIndicator(true);
+            scrollToBottom();
         } else if (data.status === 'typing') {
+            const waiting = document.querySelector('#typingIndicator .gpu-wait');
+            if (waiting) waiting.textContent = '';
             updateTypingIndicator(true);
         } else if (data.status === 'audio') {
             if (typeof AlteraBackchannel !== 'undefined') AlteraBackchannel.stop();
@@ -1720,6 +1767,7 @@ function showTypingIndicator() {
                 <div class="typing-dot"></div>
                 <div class="typing-dot"></div>
             </div>
+            <div class="gpu-wait" role="status"></div>
         </div>
     `;
     container.appendChild(typingEl);

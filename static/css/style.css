@@ -398,7 +398,64 @@ body {
     align-items: center;
     justify-content: space-between;
     gap: 16px;
+    position: relative;
 }
+
+.gpu-light {
+    flex: none;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.gpu-light summary {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 32px;
+}
+
+.gpu-light summary::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--text-muted);
+}
+
+.gpu-light summary::after {
+    content: '';
+    width: 4px;
+    height: 4px;
+    border: solid currentColor;
+    border-width: 0 1px 1px 0;
+    transform: rotate(45deg);
+}
+
+.gpu-light[open] summary::after { transform: rotate(225deg); }
+.gpu-light[data-state="free"] summary::before { background: var(--success); }
+.gpu-light[data-state="shared"] summary::before { background: var(--accent); }
+.gpu-light[data-state="alone"] summary::before { background: var(--warning); }
+
+.gpu-light ul {
+    position: absolute;
+    inset-inline-end: 12px;
+    top: 100%;
+    z-index: 2;
+    max-width: min(24rem, calc(100% - 24px));
+    padding: 10px 14px;
+    list-style: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    overflow-wrap: anywhere;
+}
+
+.gpu-light li + li { margin-top: 6px; }
+.gpu-wait { color: var(--text-secondary); }
+.message-content:has(.gpu-wait:not(:empty)) .typing-indicator { display: none; }
 
 .companion-info {
     display: flex;
@@ -1085,15 +1142,19 @@ body {
     /* Compact header on mobile */
     .chat-header {
         padding: 12px 16px;
+        gap: 8px;
     }
 
-    .status-text {
+    .companion-info h2,
+    .companion-info .status-text {
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
 
-    .companion-info > div:last-child {
+    .companion-info .status-text { display: block; }
+    .companion-info .status-text::before { display: inline-block; margin-inline-end: 4px; }
+    .companion-info > div:nth-child(2) {
         min-width: 0;
     }
 

@@ -350,9 +350,10 @@ async function loadMeetStatus() {
     go.disabled = !ready;
     start.hidden = status.online;
     note.classList.toggle('error', !ready);
-    note.textContent = ready
+    const message = ready
         ? (status.outdated ? status.message : 'NPC Forge is ready. Pick what you like or leave everything on Surprise me.')
         : (status.message || 'NPC Forge cannot make someone new right now.');
+    note.textContent = [message, ...(status.notices || [])].join(' ');
     if (ready && status.outdated) note.classList.add('error');
 }
 

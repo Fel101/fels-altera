@@ -378,14 +378,18 @@ def _mark_up():
 
 
 def _kokoro_wav(text, cfg):
+    from core.voice_service import reserve_speech
     k = cfg["kokoro"]
     body = json.dumps({"engine": "kokoro", "text": text, "voice": k["voice"], "speed": k["speed"]}).encode("utf-8")
+    finished = reserve_speech()
     try:
         return voice_http.read(k['url'], '/api/speak', data=body, timeout=k['timeout_s'], limit=MAX_WAV_BYTES)
     except voice_http.VoiceHTTPUnavailable as exc:
         raise TTSUnavailable(str(exc)) from None
     except voice_http.VoiceHTTPError as exc:
         raise TTSError(str(exc)) from None
+    finally:
+        finished()
 
 
 def _kokoro_clip(text, cfg):

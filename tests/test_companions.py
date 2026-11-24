@@ -244,10 +244,16 @@ def fake_opener(routes, log=None):
             return False
 
     def wrapped(request, timeout=None):
-        key = f"{request.get_method()} {request.full_url.split('8765', 1)[1]}"
+        from urllib.parse import urlsplit
+        key = f"{request.get_method()} {urlsplit(request.full_url).path}"
         if log is not None:
             log.append((key, request.data))
-        answer = routes[key]
+        if key == "GET /api/health":
+            answer = routes.get(key, {"online": True})
+            if isinstance(answer, dict):
+                answer = {"gpu_rule": {}, **answer}
+        else:
+            answer = routes[key]
         if isinstance(answer, Exception):
             raise answer
         return Response(json.dumps(answer).encode())
@@ -261,7 +267,7 @@ CONFIG = {"api_version": 4, "settings": {"models": {
 
 def test_forge_status_says_what_is_missing_in_plain_words():
     import urllib.error
-    down = forge.ForgeClient({}, opener=fake_opener({"GET /api/config": urllib.error.URLError("refused")}))
+    down = forge.ForgeClient({}, opener=fake_opener({"GET /api/health": urllib.error.URLError(ConnectionRefusedError())}))
     assert down.status()["online"] is False and "not running" in down.status()["message"]
     locked = forge.ForgeClient({}, opener=fake_opener({"GET /api/config": {"api_version": 4, "settings": {"modern": {}}},
                                                        "GET /api/health": {"online": True}}))
@@ -436,8 +442,13 @@ def test_forge_is_only_started_when_nothing_is_listening_on_its_port(monkeypatch
     import subprocess
     launched = []
     monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: launched.append((a, k)))
-    monkeypatch.setattr(forge, "_port_open", lambda url: True)
+    monkeypatch.setattr(forge.ForgeClient, "_ask_health", lambda *args: {"online": True, "gpu_rule": {}})
     assert forge.start({})["started"] is False and "already running" in forge.start({})["message"] and launched == []
+    def down(*args):
+        raise forge.ForgeNotListening("NPC Forge is not running.")
+    monkeypatch.setattr(forge.ForgeClient, "_ask_health", down)
+    monkeypatch.setattr(forge, "_port_open", lambda url: True)
+    assert forge.start({})["started"] is False and "port is already in use" in forge.start({})["message"] and launched == []
     monkeypatch.setattr(forge, "_port_open", lambda url: False)
     assert forge.start({})["started"] is False and launched == []                            # no library configured: no folder to start
     folder = "C:\\somewhere\\npc-generator"
@@ -447,7 +458,7 @@ def test_forge_is_only_started_when_nothing_is_listening_on_its_port(monkeypatch
     monkeypatch.setattr(forge, "_forge_python", lambda config=None: ["py", "-3"])
     assert forge.start({})["started"] is True
     args, kwargs = launched[0]
-    assert args[0] == ["py", "-3", "server.py", "--port", "8765"] and kwargs["cwd"] == folder
+    assert args[0] == ["py", "-3", "server.py", "--port", "8766"] and kwargs["cwd"] == folder
 
 
 def test_forge_runs_with_the_first_python_that_has_pillow_and_numpy(monkeypatch):

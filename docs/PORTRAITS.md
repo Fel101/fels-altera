@@ -98,25 +98,22 @@ reason.
 
 ## The GPU
 
-NPC Forge uses one model on the GPU at a time, and refuses a picture while another program holds the card ComfyUI draws
-on. From NPC Forge's API 44 on, Altera asks NPC Forge whether the GPU is free (`GET /api/gpu`) before it queues a portrait,
-a living portrait or a new companion:
+Altera finds NPC Forge at the address in `companion.forge.url` if you set one, then through Fel's Studio, then on port
+8766. It can also find NPC Forge 1.0 on port 8765, where it checks that the service really is NPC Forge.
 
-- When LM Studio's server holds it, Altera unloads LM Studio's model (`lms unload --all`), waits up to 15 seconds for the
-  GPU to come free, and goes on. The next chat reply loads the model again, a little more slowly. Set
-  `companion.forge.unload_llm: false` in `config.yaml` to have Altera ask you to unload it instead.
-- When ComfyUI is busy with another job, Altera checks twice more at two-second intervals. If it is still busy, the dialog
-  asks you to wait. If ComfyUI is down, the dialog asks you to start it. If it is holding memory it was told to free,
-  the dialog asks you to restart it. If another program holds the card, the dialog shows the blocker.
-- When LM Studio loads its model again during a job (a chat reply, the age check of another picture), NPC Forge stops the
-  job. Altera checks the card again and unloads LM Studio if it still holds the card. Once Forge reports the GPU is ready,
-  Altera asks it to carry on from the step that stopped. Altera makes one recovery attempt per portrait.
+The GPU light in the chat header shows which studio apps are sharing the graphics card or whether NPC Forge has it to
+itself. Open the light to see what each app is running and since when. If **One model at a time** is on in NPC Forge, a
+reply from LM Studio or Ollama on this PC waits for the card. You can stop the reply while it waits.
+
+With NPC Forge 1.0 (API 44 or later), Altera checks whether the GPU is ready before queuing a picture. If LM Studio or
+Ollama holds the card, Altera can ask the local model servers to unload and wait up to 15 seconds for the card to clear.
+Set `companion.forge.unload_llm: false` to do that yourself. If ComfyUI or another program holds the card, the dialog
+says which program needs attention. Altera makes one recovery attempt per portrait if the GPU becomes busy during a job.
 
 The Gender menu follows the description until a gender is chosen. Ages NPC Forge rolled for a freeform character are
 labelled as guesses in Altera, separately from the portrait age check.
 
-The age check asks the chat model to look at every new portrait and living frame, so LM Studio loads it again right after
-a picture is made. That is fine: the next picture unloads it first.
+The age check asks the vision model to look at every new portrait and living frame.
 
 With an NPC Forge older than API 44 nothing is asked first. A step the GPU was refused for is read from NPC Forge's error
 text, and Altera stops the job there, since every later step would be refused the same way.

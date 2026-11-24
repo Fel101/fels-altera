@@ -117,7 +117,7 @@ test('the optional pieces are listed with what is up, and none of them blocks', 
 
 test('NPC Forge that is not running is just "Not running", never an instruction to start a tool most people lack', async () => {
     const {doc, byId} = page();
-    const {fetchImpl} = server({forge: {online: false, comfy_online: null,
+    const {fetchImpl} = server({forge: {online: false, comfy_online: null, not_running: true,
         message: 'NPC Forge is not running. Start it, then try again.'}});
     const setup = load().start({doc, fetchImpl, navigate() {}, search: () => ''});
     await setup.loaded;
@@ -130,6 +130,15 @@ test('NPC Forge that is not running is just "Not running", never an instruction 
     assert.match(text(forge), /paints portraits from descriptions and creates characters with personalities/i);
     assert.doesNotMatch(text(forge), /Start it/);
     assert.match(text(byId.setupOptional.children[2]), /pictures in the chat need it/);
+});
+
+test('Setup reports a different app at the NPC Forge address', async () => {
+    const {doc, byId} = page();
+    const {fetchImpl} = server({forge: {online: false, message: 'Voice Lab answered at the NPC Forge address.'}});
+    const setup = load().start({doc, fetchImpl, navigate() {}, search: () => ''});
+    await setup.loaded;
+    assert.match(text(byId.setupOptional.children[1]), /Voice Lab answered/);
+    assert.doesNotMatch(text(byId.setupOptional.children[1]), /Not running/);
 });
 
 test('an optional piece that cannot be read says so and still lets the first run finish', async () => {

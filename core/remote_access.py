@@ -8,6 +8,18 @@ from flask import jsonify, request
 from core.config import get_config
 
 
+def direct_local_request():
+    """Whether this request addresses the loopback server without proxy identity."""
+    forwarded = any(name in request.headers for name in
+                    ("X-Forwarded-For", "X-Forwarded-Proto", "X-Forwarded-Host", "Tailscale-User-Login", "Forwarded"))
+    try:
+        hostname = urlsplit(f"//{request.host}").hostname
+        return (ipaddress.ip_address(request.remote_addr or "").is_loopback
+                and hostname in {"localhost", "127.0.0.1", "::1"} and not forwarded)
+    except ValueError:
+        return False
+
+
 def install_remote_access(app):
     @app.before_request
     def check_remote_access():
@@ -27,10 +39,7 @@ def install_remote_access(app):
             return denied()
 
         login = request.headers.get("Tailscale-User-Login", "").casefold()
-        forwarded = any(request.headers.get(name) for name in
-                        ("X-Forwarded-For", "X-Forwarded-Proto", "X-Forwarded-Host", "Tailscale-User-Login"))
-        hostname = urlsplit(f"//{request.host}").hostname
-        if hostname in {"localhost", "127.0.0.1", "::1"} and not forwarded:
+        if direct_local_request():
             return None
 
         if not settings.get("enabled", False):

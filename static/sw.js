@@ -90,7 +90,8 @@
 // v108: About and its π (about.js); adult mode's settings move out of Settings into the box the π opens. Home: a voice
 // sample says why it stayed silent, and a portrait can come from NPC Forge's library or an upload (home.js).
 // v110: the setup page links to NPC Forge, and About links to all four Fel's Studio apps.
-const CACHE_VERSION = 'v110';
+// v111: suite GPU status, reply waiting, and NPC Forge connection details.
+const CACHE_VERSION = 'v111';
 const STATIC_CACHE = `altera-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `altera-dynamic-${CACHE_VERSION}`;
 

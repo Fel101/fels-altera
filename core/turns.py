@@ -15,6 +15,7 @@ import time
 import uuid
 
 from core.owned_iterator import owned_iterator
+from core.suite_gpu import GpuWaitError
 
 LOGGER = logging.getLogger(__name__)
 CURRENT_TURN = contextvars.ContextVar("altera_turn", default=None)
@@ -218,10 +219,12 @@ class TurnService:
                 LOGGER.exception("Reply failed: request_id=%s", turn.request_id)
                 if (turn.regenerate or {}).get("assistant_message_id"):
                     error = "The replacement could not be completed. Your previous answer is unchanged."
+                elif isinstance(failure, GpuWaitError):
+                    error = str(failure)
+                elif row["user_message_id"]:
+                    error = EMPTY_REPLY if str(failure) == EMPTY_REPLY else "The reply could not be completed. Your message is saved."
                 else:
-                    error = ("The message could not be confirmed as saved. Reconnect before retrying."
-                             if not row["user_message_id"] else EMPTY_REPLY if str(failure) == EMPTY_REPLY else
-                             "The reply could not be completed. Your message is saved.")
+                    error = "The message could not be confirmed as saved. Reconnect before retrying."
                 turn.update(status="failed", error=error)
         finally:
             try:

@@ -179,7 +179,7 @@ time).
 | `memory.every_messages` | 4 | read this many of your new messages for memories in one background pass |
 | `memory.batch_messages` | 30 | at most this many messages in one memory call |
 | `memory.max_memories` | 8 | at most this many memories from one batch |
-| `forge.url` | `http://127.0.0.1:8765` | NPC Forge (loopback addresses only) |
+| `forge.url` | Automatic discovery | Optional loopback address checked before the suite address file, port 8766, and legacy port 8765 |
 | `forge.python` | (none) | the Python that runs NPC Forge when Altera starts it: by default the first compatible configured/candidate environment |
 
 ## Endpoints

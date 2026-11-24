@@ -116,17 +116,23 @@ class SpeechStream:
             self._submit(" ".join(group))
 
     def _submit(self, text):
-        from core import tts
+        from core import tts, voice_service
         if self._failed or self._closed or self._cancelled():
             return
         for piece in tts.chunk_for_speech(text):
             from core.state_gate import STATE
             lease = STATE.enter('altera-speech')
             try:
-                future = self._pool.submit(self._make_clip, piece)
+                finished = voice_service.reserve_speech()
+                try:
+                    future = self._pool.submit(self._make_clip, piece)
+                except BaseException:
+                    finished()
+                    raise
                 # close(wait=False) can outlive the reply. Keep cleanup blocked until
                 # the actual writer finishes; cancellation also runs this callback.
                 future.add_done_callback(lambda finished, owned=lease: owned.release())
+                future.add_done_callback(lambda future, release=finished: release())
                 self._futures.append(future)
             except BaseException:
                 lease.release()

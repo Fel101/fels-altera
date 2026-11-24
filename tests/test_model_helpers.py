@@ -70,35 +70,17 @@ def test_ask_raises_when_the_model_cannot_be_reached(model):
 
 # ---------------------------------------------------------------- unload_models() (freeing RAM/VRAM before a picture)
 
-def test_unload_models_runs_lms_unload_all_when_it_can_be_found(monkeypatch):
-    monkeypatch.setattr(llm.shutil, "which", lambda name: r"C:\lmstudio\lms.exe" if name == "lms" else None)
+def test_unload_models_uses_the_suite_helper_for_lm_studio_and_ollama(monkeypatch, caplog):
+    from core import fels_suite
     calls = []
-    monkeypatch.setattr(llm.subprocess, "run", lambda cmd, **kw: calls.append((cmd, kw)))
-    assert llm.unload_models() is True
-    cmd, kwargs = calls[0]
-    assert cmd == [r"C:\lmstudio\lms.exe", "unload", "--all"] and kwargs["timeout"] == 20.0 and kwargs["check"] is True
-
-
-def test_unload_models_falls_back_to_the_default_install_path(monkeypatch):
-    monkeypatch.setattr(llm.shutil, "which", lambda name: None)
-    monkeypatch.setattr(llm, "_default_lms_path", lambda: r"C:\Users\someone\.lmstudio\bin\lms.exe")
-    calls = []
-    monkeypatch.setattr(llm.subprocess, "run", lambda cmd, **kw: calls.append(cmd))
-    assert llm.unload_models() is True
-    assert calls == [[r"C:\Users\someone\.lmstudio\bin\lms.exe", "unload", "--all"]]
-
-
-def test_unload_models_never_raises_when_lms_cannot_be_found_or_fails(monkeypatch):
-    monkeypatch.setattr(llm.shutil, "which", lambda name: None)
-    monkeypatch.setattr(llm, "_default_lms_path", lambda: None)
-    assert llm.unload_models() is False                                    # nothing to run; must not raise
-
-    monkeypatch.setattr(llm.shutil, "which", lambda name: "lms")
-
-    def boom(cmd, **kw):
-        raise TimeoutError("lms did not answer")
-    monkeypatch.setattr(llm.subprocess, "run", boom)
-    assert llm.unload_models() is False                                    # the command exists but fails; still no raise
+    results = [{"program": "LM Studio", "done": False, "problem": "LM Studio could not unload."},
+               {"program": "Ollama", "done": True, "problem": None}]
+    monkeypatch.setattr(fels_suite, "unload_outside", lambda *, ask_json, timeout: calls.append(timeout) or results)
+    assert llm.unload_models(timeout=7) is True
+    assert calls == [7]
+    assert "LM Studio could not unload" in caplog.text
+    results.pop()
+    assert llm.unload_models() is False
 
 
 # ---------------------------------------------------------------- the helpers really reach the model

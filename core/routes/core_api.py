@@ -153,7 +153,11 @@ def chat():
         return jsonify(session_err[0]), session_err[1]
 
     engine = _get_chat_engine()
-    response_text, photos = engine.send_message(user_message, session_id, return_photos=True)
+    from core.suite_gpu import GpuWaitError
+    try:
+        response_text, photos = engine.send_message(user_message, session_id, return_photos=True)
+    except GpuWaitError as error:
+        return jsonify(error=str(error), code="gpu_busy"), 503
 
     return jsonify({
         "response": response_text,
@@ -318,6 +322,8 @@ def chat_stream(_json_response=False, _regenerate=False):
                             yield f"data: {json.dumps({'photo': chunk['photo']})}\n\n"
                         elif isinstance(chunk, dict) and chunk.get("notes"):
                             yield f"data: {json.dumps({'status': 'notes', 'state': chunk['notes']})}\n\n"
+                        elif isinstance(chunk, dict) and chunk.get("status") in {"gpu_wait", "typing"}:
+                            yield f"data: {json.dumps(chunk)}\n\n"
 
                 resp_len = len(full_response)
                 LOGGER.debug("Streaming LLM returned chars=%s chunks=%s", resp_len, chunk_count)
@@ -356,8 +362,11 @@ def chat_stream(_json_response=False, _regenerate=False):
                 close_owned(speech)
 
         if stream_failed:
+            from core.suite_gpu import GpuWaitError
             from core.turns import EmptyReply
-            said = (str(stream_failed) if isinstance(stream_failed, EmptyReply) else
+            if isinstance(stream_failed, GpuWaitError) and CURRENT_TURN.get():
+                raise stream_failed
+            said = (str(stream_failed) if isinstance(stream_failed, (EmptyReply, GpuWaitError)) else
                     'The reply could not be completed. Check the saved conversation before retrying.')
             yield f"data: {json.dumps({'status': 'failed', 'error': said})}\n\n"
             return

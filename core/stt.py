@@ -19,7 +19,8 @@ TRANSCRIPTION_FAILED = "Could not transcribe the audio. Check that the local spe
 # transcribe_audio(), so every spoken message paid that cost again — the comment there said "cached after", and it
 # was not. One model per size, built once, reused for the life of the process.
 _models = {}
-_models_lock = threading.Lock()
+_models_lock = threading.RLock()
+_active = {}
 
 
 def _local_model_path(model_size):
@@ -69,6 +70,18 @@ def reset_models():
         _models.clear()
 
 
+def unload_gpu_models():
+    """Drop cached GPU recognizers only, and report busy if one is transcribing."""
+    with _models_lock:
+        gpu = [size for size, model in _models.items()
+               if str(getattr(getattr(model, "model", None), "device", "")).startswith("cuda")]
+        if any(_active.get(id(_models[size])) for size in gpu):
+            return False
+        for size in gpu:
+            del _models[size]
+        return True
+
+
 def transcribe_audio(audio_path, model_size="base", language=None, offline_only=True):
     """
     Transcribe an audio file using faster-whisper.
@@ -82,16 +95,24 @@ def transcribe_audio(audio_path, model_size="base", language=None, offline_only=
         Dict with 'text' key containing the transcription, or error message
     """
     try:
-        model = _get_model(model_size, offline_only=True) if offline_only else _get_model(model_size)
-
-        segments, info = model.transcribe(
-            audio_path,
-            language=language,
-            beam_size=5,
-            vad_filter=True  # Voice activity detection for cleaner results
-        )
-
-        text = "".join(segment.text for segment in segments)
+        with _models_lock:
+            model = _get_model(model_size, offline_only=True) if offline_only else _get_model(model_size)
+            key = id(model)
+            _active[key] = _active.get(key, 0) + 1
+        try:
+            segments, info = model.transcribe(
+                audio_path,
+                language=language,
+                beam_size=5,
+                vad_filter=True  # Voice activity detection for cleaner results
+            )
+            text = "".join(segment.text for segment in segments)
+        finally:
+            del model
+            with _models_lock:
+                _active[key] -= 1
+                if not _active[key]:
+                    del _active[key]
         return {
             "text": text.strip(),
             "language": info.language,

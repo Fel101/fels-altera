@@ -633,7 +633,8 @@
                 fillEngines($('portraitEditModel'), 'edit', current.edit_model);
                 renderEngines();
                 const ready = forge.online === true && forge.comfy_online !== false && (forge.styles || []).length > 0;
-                $('portraitForge').textContent = ready ? 'NPC Forge is ready.' : (forge.message || 'NPC Forge is not ready.');
+                const message = ready ? 'NPC Forge is ready.' : (forge.message || 'NPC Forge is not ready.');
+                $('portraitForge').textContent = [message, ...(forge.notices || [])].join(' ');
                 $('portraitForgeStart').hidden = forge.online === true;
                 $('portraitPaint').disabled = !ready || Boolean(current.job);
             } catch (error) {

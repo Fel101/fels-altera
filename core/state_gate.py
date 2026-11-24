@@ -237,7 +237,7 @@ def install_state_gate(app):
             g.altera_state_lease = STATE.enter_backup_request()
         elif request.endpoint != "static":
             g.altera_state_lease = STATE.enter(f"request:{request.endpoint or 'unknown'}")
-        if request.blueprint != "backups" and request.endpoint != "static":
+        if request.blueprint != "backups" and request.endpoint not in {"static", "system.suite_unload"}:
             if request.method not in {"GET", "HEAD", "OPTIONS"}:
                 from core.datastore import get_datastore
                 epoch = get_datastore().get_key("dataset_epoch") or {}

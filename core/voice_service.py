@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 from urllib.parse import urlparse
 
-from core import env, tts, voice_http
+from core import env, suite_gpu, tts, voice_http
 from core.owned_process import OwnedChildProcess
 
 LOGGER = logging.getLogger(__name__)
@@ -31,6 +31,9 @@ _lock = threading.Lock()
 _proc = None
 _owner = None
 _owner_key = None
+_gpu_release = None
+_speaking = 0
+_unloading = False
 _closing = False
 _last_start = 0.0
 _atexit_registered = False
@@ -72,6 +75,81 @@ def info(cfg=None, timeout=0.7):
         return data if isinstance(data, dict) else None
     except Exception:
         return None
+
+
+def reserve_speech():
+    """Keep synthesis safe through completion, including queued clips after a browser disconnect."""
+    global _speaking
+    with _lock:
+        if _unloading:
+            raise tts.TTSUnavailable("The local voice is being unloaded. Try again in a moment.")
+        _speaking += 1
+
+    def finished():
+        global _speaking
+        with _lock:
+            _speaking -= 1
+
+    return finished
+
+
+def _drop_gpu():
+    global _gpu_release
+    if _gpu_release is not None:
+        _gpu_release()
+        _gpu_release = None
+
+
+def _clear_owner():
+    global _owner, _proc, _owner_key
+    _owner = _proc = _owner_key = None
+    _drop_gpu()
+
+
+def _watch_gpu_voice(owner, cfg):
+    """Release the provisional lease if auto picked CPU, or the lease if the service exited."""
+    check_device = True
+    while owner.running:
+        if check_device:
+            data = info(cfg)
+            if data and "kokoro" in (data.get("loaded") or []):
+                check_device = False
+                if data.get("device") == "cpu":
+                    break
+        time.sleep(1)
+    with _lock:
+        if _owner is owner and not owner.stopping:
+            _drop_gpu()
+
+
+def unload_gpu():
+    """Unload Altera's own GPU models, preserving an active voice reply and independent voice servers."""
+    global _unloading, _last_start
+    from core import stt
+    with _lock:
+        if _speaking:
+            return "speaking a reply"
+        if _unloading:
+            return "freeing the GPU"
+        _unloading = True
+        owner = _owner if _gpu_release is not None else None
+    try:
+        if not stt.unload_gpu_models():
+            return "transcribing audio"
+        if owner is not None:
+            # Forge gives its local HTTP request three seconds. A slow close can be retried.
+            if not owner.close(timeout=2):
+                return "freeing the voice model"
+            with _lock:
+                if _owner is owner:
+                    _clear_owner()
+                    _last_start = 0
+        if suite_gpu.chat_in_use():
+            return "writing a reply"
+        return None
+    finally:
+        with _lock:
+            _unloading = False
 
 
 def status(cfg=None, ensure_started=False):
@@ -139,7 +217,7 @@ def start(cfg=None, force=False):
     running (already up), started, disabled (not the kokoro engine, autostart off, or not a local address),
     no-launcher, waiting, stopping, or a fixed startup failure description.
     """
-    global _proc, _owner, _owner_key, _last_start, _atexit_registered
+    global _proc, _owner, _owner_key, _gpu_release, _last_start, _atexit_registered
     cfg = cfg or tts.settings()
     if cfg["engine"] != "kokoro" or not cfg["kokoro"]["autostart"]:
         return "disabled"
@@ -151,7 +229,7 @@ def start(cfg=None, force=False):
     if parsed.scheme not in {'http', 'https'} or parsed.hostname not in LOOPBACK or not port:
         return "disabled"
     with _lock:
-        if _closing:
+        if _closing or _unloading:
             return 'stopping'
     if info(cfg) is not None:
         return "running"
@@ -161,16 +239,22 @@ def start(cfg=None, force=False):
     python, script = python.resolve(), script.resolve()
     identity = (cfg['kokoro']['url'], str(python), str(script))
     with _lock:
-        if _closing:
+        if _closing or _unloading:
             return 'stopping'
         if _owner is not None:
             if not _owner.stopping and (_owner.starting or _owner.process is None or _owner.running):
                 return 'started' if _owner_key == identity else 'waiting'
             if not _owner.close(timeout=0):
                 return 'stopping'
-            _owner = _proc = _owner_key = None
+            _clear_owner()
         if not force and time.time() - _last_start < START_RETRY_S:
             return "waiting"
+        gpu_capable = (bool(cfg["kokoro"]["script"])
+                       or os.environ.get("ALTERA_VOICE_DEVICE", "").strip().lower() in {"cuda", "auto"})
+        if gpu_capable:
+            _gpu_release = suite_gpu.try_use(suite_gpu.VOICE)
+            if _gpu_release is None:
+                return "waiting"
         _last_start = time.time()
         owner = OwnedChildProcess(lambda parent: [str(python), str(script), '--port', str(port), '--idle-minutes', '0',
             '--preload', 'kokoro', '--parent-pid', str(parent)], cwd=str(script.parent),
@@ -186,11 +270,14 @@ def start(cfg=None, force=False):
         owner.close(timeout=5)
         with _lock:
             if _owner is owner and owner.closed:
-                _owner = _proc = _owner_key = None
+                _clear_owner()
             return 'stopping' if _closing else 'failed: The voice service could not start.'
     with _lock:
         if _owner is owner:
             _proc = owner.process
+            if gpu_capable:
+                threading.Thread(target=_watch_gpu_voice, args=(owner, cfg),
+                                 name="altera-voice-gpu", daemon=True).start()
         return 'stopping' if _closing else 'started'
 
 
@@ -204,7 +291,7 @@ def _queue_start(cfg=None, *, announce=False):
     if cfg.get('engine') != 'kokoro' or not cfg.get('kokoro', {}).get('autostart'):
         return False
     with _lock:
-        if (_closing or _starter_busy.is_set()
+        if (_closing or _unloading or _starter_busy.is_set()
                 or _owner is None and time.time() - _last_start < START_RETRY_S):
             return False
         _starter_busy.set()
@@ -259,7 +346,6 @@ def resources_closed():
 
 def stop(timeout=5):
     """Fence startup and cooperatively close only this process's retained owner."""
-    global _proc, _owner, _owner_key
     begin_drain()
     with _lock:
         owner = _owner
@@ -269,5 +355,5 @@ def stop(timeout=5):
     if closed:
         with _lock:
             if _owner is owner:
-                _owner = _proc = _owner_key = None
+                _clear_owner()
     return closed

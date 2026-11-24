@@ -8,9 +8,11 @@
             hint: 'Optional: install the local voice with voice\\setup.bat, then switch Voice on in Settings.'},
         {name: 'NPC Forge', url: '/api/forge/status', link: 'https://github.com/Fel101/fels-npc-forge',
             up: data => Boolean(data.online),
-            on: data => data.comfy_online ? 'Running, with ComfyUI.' : 'Running, but ComfyUI is not reachable.',
+            on: data => [data.comfy_online === true ? 'Running, with ComfyUI.' :
+                data.comfy_online === false ? 'Running, but ComfyUI is not reachable.' : 'Running. ComfyUI status is unknown.',
+                ...(data.notices || [])].join(' '),
             // The install link is useful even when the service is unavailable.
-            off: () => 'Not running.',
+            off: data => data.not_running ? 'Not running.' : data.message || 'Could not reach NPC Forge.',
             hint: 'Optional. Paints portraits from descriptions and creates characters with personalities.'},
         {name: 'ComfyUI', url: '/api/imagegen/status',
             up: data => Boolean((data.comfy || {}).online), on: () => 'Reachable.', off: () => 'Not running.',

@@ -33,6 +33,8 @@ The durable stream begins with `{status: "accepted", request_id, session_id}`. R
 
 A model completion with no visible reply fails instead of saving an empty assistant message. A provider's separate reasoning field is not treated as a visible answer. The user's message remains available for retry; a failed regeneration also retains the previous answer. A successfully created picture-only reply is valid.
 
+A local LM Studio or Ollama reply waiting for the suite GPU lock emits `{status: "gpu_wait", message}` and emits `typing` when it can start. The same Stop endpoint cancels a waiting reply.
+
 `POST /api/chat` with a request ID uses the same durable worker but waits for JSON; unsuccessful terminal work returns 503. Without an ID, `/api/chat` retains the older `{response, session_id, photos}` response and `/api/chat/stream` retains its legacy stream ending `final`/`done`. These compatibility modes do not provide durable retries or owned Stop.
 
 | Control | Request |
@@ -453,6 +455,8 @@ Source: [`system.py`](../core/routes/system.py).
 | --- | --- | --- |
 | `GET` | `/api/health` | Suite discovery. Returns `ok: true` and the `fels` block with `contract`, `app`, `version` and `api`. Available without the Altera PIN. |
 | `GET` | `/api/health/details` | App dependency checks for the UI. Accepts an optional `session_id` and uses the app's normal access controls. |
+| `GET` | `/api/gpu` | Suite GPU lock state (`free`, `shared` or `alone`), current holders and any pending exclusive request. Uses the app's normal access controls. |
+| `POST` | `/api/unload` | Local app-to-app request with JSON. Frees Altera's own GPU voice and microphone models, returning `{ok: true}`. Returns 409 with `code: "busy"` and `doing` during active work. Available without the PIN to direct loopback clients. Browser and proxied requests are refused. |
 | `GET` | `/api/diagnostics` | Private per-request diagnostics. |
 | `GET` | `/api/conversation-starters` | Get suggested conversation starters based on time of day and user interests. |
 

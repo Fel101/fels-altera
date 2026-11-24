@@ -134,17 +134,11 @@ def _no_real_model_and_a_fresh_notes_service(monkeypatch):
 
     monkeypatch.setattr(openai, "OpenAI", no_openai)
 
-    # Picture tests must not unload a developer's real LM Studio model. SDK
-    # guards do not intercept CLI control. Tests of CLI behavior provide their
-    # own discovery and subprocess fakes explicitly.
-    from core import llm
-    real_which = llm.shutil.which
-    def without_model_cli(command, *args, **kwargs):
-        if Path(os.fsdecode(command)).name.lower() in {'lms', 'lms.exe'}:
-            return None
-        return real_which(command, *args, **kwargs)
-    monkeypatch.setattr(llm.shutil, 'which', without_model_cli)
-    monkeypatch.setattr(llm, '_default_lms_path', lambda: None)
+    # Picture tests must not query or unload personal LM Studio and Ollama processes.
+    # The shared vectors inject their own discovery, requests and subprocess fakes.
+    from core import fels_suite, suite_gpu
+    monkeypatch.setattr(suite_gpu, '_ask_local_model', lambda *args, **kwargs: None)
+    monkeypatch.setattr(fels_suite, '_find_lms', lambda: None)
 
     # The mood is analysed in the background after a reply; in a test it runs before the reply is done, so it can be looked at.
     from core import emotion

@@ -9,3 +9,4 @@
 *.yml text eol=lf
 *.bat text eol=crlf
 *.sh text eol=lf
+tests/suite_vectors.json text eol=lf

@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from threading import Event
 import time
 from types import SimpleNamespace
 import urllib.error
@@ -19,9 +20,15 @@ from core.health import HealthService
 from core.paths import CODE_ROOT, data_path
 
 
+def test_shared_suite_vectors():
+    from core.fels_suite import check_vectors
+    failures = check_vectors(Path(__file__).with_name('suite_vectors.json'))
+    assert not failures, '\n'.join(failures)
+
+
 @pytest.fixture
 def runtime_config(altera_config):
-    altera_config.write_text(yaml.safe_dump({'app': {'host': '127.0.0.1', 'port': 5001, 'debug': False},
+    altera_config.write_text(yaml.safe_dump({'app': {'host': '127.0.0.1', 'port': 8767, 'debug': False},
                                         'llm': {'provider': 'lmstudio', 'model': 'unit-model'}, 'voice': {'tts_enabled': False},
                                         'memory': {'top_k': 5}, 'imagegen': {'enabled': False}, 'tools': {'enabled': False}}), 'utf-8')
     return altera_config
@@ -70,7 +77,7 @@ def test_in_place_startup_seeds_only_missing_config(runtime_config, monkeypatch,
     from core import runtime
     home = runtime_config.parent
     monkeypatch.setattr(runtime, 'CODE_ROOT', home)
-    starter = b'app:\n  port: 5001\nvoice:\n  tts_enabled: false\n'
+    starter = b'app:\n  port: 8767\nvoice:\n  tts_enabled: false\n'
     (home / 'config.example.yaml').write_bytes(starter)
     if existing is None:
         runtime_config.unlink()
@@ -281,16 +288,82 @@ def test_provider_settings_use_config_before_the_first_chat(runtime_config, monk
     assert registry.get_active_model() == 'unit-model'
 
 
-def test_script_launcher_uses_configured_port_and_compatible_upload_limit(runtime_config, monkeypatch):
-    import waitress
-    from core import runtime
+@pytest.mark.parametrize('configured_port, expected_port', [(None, 8767), (5001, 5001), (0, 59876)])
+def test_launcher_advertises_the_bound_address_until_exit(runtime_config, monkeypatch, configured_port, expected_port):
+    from waitress import server
+    from core import fels_suite, runtime
     from core.backups import MAX_ARCHIVE_BYTES
-    runtime_config.write_text(runtime_config.read_text('utf-8').replace('port: 5001', 'port: 59876'), 'utf-8')
-    calls = []
-    monkeypatch.setattr(sys, 'argv', ['altera.py'])
-    monkeypatch.setattr(waitress, 'serve', lambda app, **kwargs: calls.append((app, kwargs)))
+    from core.version import SUITE_API, VERSION
+
+    settings = yaml.safe_load(runtime_config.read_text('utf-8'))
+    settings['app']['host'] = 'localhost'
+    settings['app'].pop('port')
+    if configured_port is not None:
+        settings['app']['port'] = configured_port
+    runtime_config.write_text(yaml.safe_dump(settings), 'utf-8')
+    address = fels_suite.address_path('altera')
+    inbox = fels_suite.inbox_dir('altera')
     app = create_app(autostart=False)
-    runtime.main(app)
-    assert calls[0][0] is app and calls[0][1]['port'] == 59876
-    assert calls[0][1]['threads'] > 1 and calls[0][1]['clear_untrusted_proxy_headers'] is False
-    assert calls[0][1]['max_request_body_size'] >= MAX_ARCHIVE_BYTES
+    closed = []
+    opened_urls = []
+    opened = Event()
+
+    def open_browser(url):
+        opened_urls.append(url)
+        opened.set()
+
+    def run():
+        entry = json.loads(address.read_text('utf-8'))
+        assert fels_suite.read_address('altera') == entry
+        assert entry['url'] == f'http://127.0.0.1:{expected_port}'
+        assert (entry['app'], entry['version'], entry['api'], entry['pid']) == ('altera', VERSION, SUITE_API, os.getpid())
+        assert entry['instance'] and entry['started']
+        assert inbox.is_dir()
+
+    def bind(application, **options):
+        assert application is app and not address.exists()
+        assert options['host'] == 'localhost'
+        assert options['port'] == (8767 if configured_port is None else configured_port)
+        assert options['threads'] > 1 and options['clear_untrusted_proxy_headers'] is False
+        assert options['max_request_body_size'] >= MAX_ARCHIVE_BYTES
+        return SimpleNamespace(effective_host='127.0.0.1', effective_port=expected_port, run=run,
+                               close=lambda: closed.append(True))
+
+    monkeypatch.setattr(server, 'create_server', bind)
+    monkeypatch.setattr(runtime, '_open_when_ready', open_browser)
+    runtime.main(app, args=SimpleNamespace(dev=False, open=True))
+    assert opened.wait(timeout=3) and opened_urls == [f'http://localhost:{expected_port}']
+    assert closed and inbox.is_dir() and not address.exists()
+    assert yaml.safe_load(runtime_config.read_text('utf-8')) == settings
+
+
+def test_suite_health_stays_public_while_dependency_checks_keep_their_guards(runtime_config, monkeypatch):
+    from core import lock
+    from core.state_gate import STATE
+    from core.version import VERSION
+
+    calls = []
+    details = {'llm': {'model': 'private-model'}, 'memory': {'count': 5}}
+
+    def check(self, session_id):
+        calls.append(session_id)
+        return details
+
+    monkeypatch.setattr(HealthService, 'check', check)
+    client = create_app(autostart=False).test_client()
+    expected = {'ok': True, 'fels': {'contract': 1, 'app': 'altera', 'version': VERSION, 'api': 1}}
+    detail_path = '/api/health/details?session_id=42'
+    assert client.get(detail_path).json == details
+    lock.set_pin('1234')
+    for kids_view, denied_status in [(False, 423), (True, 403)]:
+        with client.session_transaction() as browser:
+            browser['kids_view'] = kids_view
+        response = client.get('/api/health?session_id=42')
+        assert response.status_code == 200 and response.json == expected
+        assert response.headers['Cache-Control'] == 'no-store'
+        assert client.get(detail_path).status_code == denied_status
+    with monkeypatch.context() as restore:
+        restore.setattr(STATE, 'enter', lambda *args: pytest.fail('Discovery must not acquire a data lease'))
+        assert client.get('/api/health').json == expected
+    assert calls == [42]
+    assert client.get('/api/health', base_url='http://other.example').status_code == 403

@@ -10,6 +10,8 @@ Overview reviewed against the working source on 2026-10-28. [plan.md](history/pl
 
 `core.paths` distinguishes the source directory (`CODE_ROOT`, containing templates/assets/code) from the instance root. The default instance is the source checkout; `ALTERA_HOME`, set before imports, selects another directory. Database, vectors, avatars, pictures, profile, cache and backup paths belong to that instance. An explicitly supplied relative `DataStore` path still follows the caller's current working directory.
 
+When the command-line server starts listening, it creates `inbox/altera/` and registers its actual listening address in `apps/altera.json` under the per-user Fel's Studio directory. It removes its own registration on graceful shutdown. The WSGI factory leaves listener registration to the host that owns the socket.
+
 ## Components
 
 ```mermaid
@@ -131,7 +133,7 @@ Content text gates run independently of model prompts; the vision age estimate i
 
 `config.yaml` is merged with `config.local.yaml` and supported API-key environment overrides. Both runtime files are ignored by Git; atomic writes additionally keep credentials separated in the local override file. Explicit provider/model selection is shared by chat and helper calls. Startup copies `config.example.yaml` to a missing `config.yaml`, including in a fresh source checkout, without replacing existing settings. The example is the portable starter, not a copy of someone's live settings. The root [quickstart](../README.md) shows setup and checks.
 
-Rotating UTF-8 logs live at `data/altera.log` (5 MiB plus three older files), including local voice child output. Configured credentials are redacted. Keep the logs private. Health performs bounded metadata checks and memory counts without inference. Diagnostics persists per-request timings, actual reported usage, reported OpenRouter credit costs and labeled estimates. Background services and legacy calls are outside its totals.
+Rotating UTF-8 logs live at `data/altera.log` (5 MiB plus three older files), including local voice child output. Configured credentials are redacted. Keep the logs private. The suite health route returns build metadata. The app's separate health details route performs bounded dependency checks and memory counts without inference. Diagnostics persists per-request timings, actual reported usage, reported OpenRouter credit costs and labeled estimates. Background services and legacy calls are outside its totals.
 
 The checks are pytest with isolated instance paths/fake models, Node frontend logic tests, Ruff and isolated Waitress startup tests. CI defines Windows/Linux runs; a local passing run does not establish a remote CI result or real model/voice/image quality. There is no frontend bundler or native installer build step in this source app.
 

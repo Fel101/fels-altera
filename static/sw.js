@@ -89,7 +89,7 @@
 // Voice switch in Settings turns the local voice on (app.js).
 // v108: About and its π (about.js); adult mode's settings move out of Settings into the box the π opens. Home: a voice
 // sample says why it stayed silent, and a portrait can come from NPC Forge's library or an upload (home.js).
-const CACHE_VERSION = 'v108';
+const CACHE_VERSION = 'v109';
 const STATIC_CACHE = `altera-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `altera-dynamic-${CACHE_VERSION}`;
 

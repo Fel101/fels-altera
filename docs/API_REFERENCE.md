@@ -1,6 +1,6 @@
 # Altera API reference
 
-The route inventory is checked against the registered application blueprints by `test_documentation.py`. Paths are relative to Altera's configured origin (default `http://127.0.0.1:5001`). The tables include every application route; payload examples below cover the main supported flows. For legacy analysis endpoints, the linked route module is the precise field/response reference.
+The route inventory is checked against the registered application blueprints by `test_documentation.py`. Paths are relative to Altera's configured origin (default `http://127.0.0.1:8767`). The tables include every application route; payload examples below cover the main supported flows. For legacy analysis endpoints, the linked route module is the precise field/response reference.
 
 ## Access, requests and errors
 
@@ -451,7 +451,8 @@ Source: [`system.py`](../core/routes/system.py).
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/health` | Bounded metadata health, without inference. |
+| `GET` | `/api/health` | Suite discovery. Returns `ok: true` and the `fels` block with `contract`, `app`, `version` and `api`. Available without the Altera PIN. |
+| `GET` | `/api/health/details` | App dependency checks for the UI. Accepts an optional `session_id` and uses the app's normal access controls. |
 | `GET` | `/api/diagnostics` | Private per-request diagnostics. |
 | `GET` | `/api/conversation-starters` | Get suggested conversation starters based on time of day and user interests. |
 

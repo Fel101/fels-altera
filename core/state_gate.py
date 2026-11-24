@@ -228,6 +228,9 @@ def install_state_gate(app):
 
     @app.before_request
     def reserve_request():
+        # Suite discovery only returns build metadata and never opens the instance data.
+        if request.endpoint == "system.suite_health":
+            return None
         if request.blueprint == 'backups':
             # Backup listing/preview can initialize or clean staging too. Own
             # every request while still admitting fault-recovery endpoints.

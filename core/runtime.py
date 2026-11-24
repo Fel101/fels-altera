@@ -1,14 +1,18 @@
 """Shared instance setup and the Windows-friendly server launcher."""
 import logging
 from logging.handlers import RotatingFileHandler
+import os
 from pathlib import Path
 import re
 import shutil
+import signal
 import threading
+from uuid import uuid4
 
-from core import env
+from core import env, fels_suite
 from core.launch_cli import parse_args
 from core.paths import CODE_ROOT, data_path, root
+from core.version import SUITE_API, VERSION
 
 LOGGER = logging.getLogger(__name__)
 _lock = threading.RLock()
@@ -138,35 +142,82 @@ def main(app=None, *, args=None):
         app = create_app()
     from core.config import get_config
     config = get_config()
-    server = config.get('app') or {}
-    host, port = server.get('host', '127.0.0.1'), int(server.get('port', 5001))
-    if args.open:
-        import urllib.request
-        import webbrowser
-        def open_when_ready():
-            import time
-            browser_host = '127.0.0.1' if host in {'0.0.0.0', '::'} else host
-            if ':' in browser_host:
-                browser_host = '[' + browser_host + ']'
-            url = f'http://{browser_host}:{port}'
-            for _ in range(30):
-                try:
-                    with urllib.request.urlopen(url + '/api/offline/status', timeout=.5):
-                        webbrowser.open(url + '/home')
-                        return
-                except Exception:
-                    time.sleep(.5)
-        threading.Thread(target=open_when_ready, name='altera-browser', daemon=True).start()
-    from core.version import VERSION
-    LOGGER.info('Altera %s listening at http://%s:%s; instance %s; source %s', VERSION, host, port, root(), CODE_ROOT)
-    if args.dev or server.get('debug', False):
-        app.run(host=host, port=port, debug=True, use_reloader=False)
+    settings = config.get('app') or {}
+    host = settings.get('host') or '127.0.0.1'
+    port = int(settings.get('port', fels_suite.PORTS['altera']))
+    if args.dev or settings.get('debug', False):
+        from werkzeug.debug import DebuggedApplication
+        from werkzeug.serving import make_server
+        app.debug = True
+        debugger = DebuggedApplication(app, evalex=True)
+        debugger.trusted_hosts.append(host)
+        server = make_server(host, port, debugger, threaded=True)
+        bound_host, bound_port = server.server_address[:2]
+        run, close = server.serve_forever, server.server_close
     else:
-        from waitress import serve
+        from waitress.server import create_server
         from core.backups import MAX_ARCHIVE_BYTES
         # A page load asks for about thirty files at once, so a short queue is normal; waitress warns about every one.
         logging.getLogger('waitress.queue').setLevel(logging.ERROR)
         # Keep raw Serve headers for the loopback + host + HTTPS + identity checks in remote_access.
         # No proxy middleware rewrites remote_addr from an untrusted forwarded header.
-        serve(app, host=host, port=port, threads=8, max_request_body_size=MAX_ARCHIVE_BYTES + 65536,
-              clear_untrusted_proxy_headers=False)
+        server = create_server(app, host=host, port=port, threads=8, max_request_body_size=MAX_ARCHIVE_BYTES + 65536,
+                               clear_untrusted_proxy_headers=False)
+        if hasattr(server, 'effective_listen'):
+            bound_host, bound_port = server.effective_listen[0]
+        else:
+            bound_host, bound_port = server.effective_host, server.effective_port
+        run, close = server.run, server.close
+
+    url = _http_url(bound_host, bound_port)
+    previous_sigterm = suite_env = None
+    try:
+        if threading.current_thread() is threading.main_thread():
+            previous_sigterm = signal.signal(signal.SIGTERM, signal.default_int_handler)
+        problem = fels_suite.suite_dir_problem()
+        if problem:
+            LOGGER.warning('%s', problem)
+        suite_env = dict(os.environ, FELS_SUITE_DIR=str(fels_suite.suite_dir()))
+        try:
+            fels_suite.inbox_dir('altera', suite_env, make=True)
+        except OSError:
+            LOGGER.warning("Could not create the Fel's Studio inbox.", exc_info=True)
+        try:
+            fels_suite.write_address('altera', url, VERSION, SUITE_API, uuid4().hex, suite_env)
+        except OSError:
+            LOGGER.warning("Could not publish Altera's address for Fel's Studio.", exc_info=True)
+        LOGGER.info('Altera %s listening at %s; instance %s; source %s', VERSION, url, root(), CODE_ROOT)
+        if args.open:
+            # Keep the configured browser origin so existing PWA storage and drafts are still available.
+            browser_url = _http_url(host, bound_port)
+            threading.Thread(target=_open_when_ready, args=(browser_url,), name='altera-browser', daemon=True).start()
+        run()
+    finally:
+        try:
+            close()
+        finally:
+            if previous_sigterm is not None:
+                signal.signal(signal.SIGTERM, previous_sigterm)
+            if suite_env is not None:
+                fels_suite.remove_address('altera', suite_env)
+
+
+def _http_url(host, port):
+    local_host = {'0.0.0.0': '127.0.0.1', '::': '::1'}.get(host, host)
+    if ':' in local_host:
+        local_host = f'[{local_host}]'
+    return f'http://{local_host}:{port}'
+
+
+def _open_when_ready(url):
+    import time
+    import urllib.request
+    import webbrowser
+
+    for _ in range(30):
+        try:
+            with urllib.request.urlopen(url + '/api/offline/status', timeout=.5):
+                webbrowser.open(url + '/home')
+                return
+        except Exception:
+            time.sleep(.5)

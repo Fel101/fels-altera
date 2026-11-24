@@ -1,13 +1,20 @@
 """Reachability checks and conversation starters."""
 from datetime import datetime
 from flask import Blueprint, current_app, jsonify, request
+from core.fels_suite import health_block
 from core.health import HealthService
+from core.version import SUITE_API, VERSION
 
 bp = Blueprint('system', __name__)
 
 
 @bp.get('/api/health')
-def system_health():
+def suite_health():
+    return jsonify(ok=True, fels=health_block('altera', VERSION, SUITE_API)), 200, {'Cache-Control': 'no-store'}
+
+
+@bp.get('/api/health/details')
+def system_health_details():
     service = current_app.extensions.setdefault('altera_health', HealthService())
     return jsonify(service.check(request.args.get('session_id', type=int))), 200, {'Cache-Control': 'no-store'}
 

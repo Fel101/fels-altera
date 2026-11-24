@@ -15,7 +15,7 @@ The header checks Altera's reachability on opening, returning to the app and eve
 
 ## One-Time Setup on the PC
 
-Leave `app.host` set to `127.0.0.1` and debug mode off. Altera's port is `5001` by default. Both devices must be connected to the same tailnet, and its access rules must permit the phone to reach the PC's HTTPS port.
+Leave `app.host` set to `127.0.0.1` and debug mode off. New installs use port `8767`. If your `config.yaml` uses `5001` or another port, use that port as the Serve backend. Both devices must be connected to the same tailnet, and its access rules must permit the phone to reach the PC's HTTPS port.
 
 Put the remote settings in `config.local.yaml` (git-ignored), replacing these example values with the PC's Tailscale hostname and the owner's Tailscale login:
 
@@ -32,7 +32,7 @@ remote_access:
 Configure a dedicated HTTPS endpoint:
 
 ```powershell
-tailscale serve --bg --https=8443 http://127.0.0.1:5001
+tailscale serve --bg --https=8443 http://127.0.0.1:8767
 tailscale serve status
 ```
 

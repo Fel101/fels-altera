@@ -44,6 +44,27 @@ The tests never reach a real model, the network or your own data. `tests/conftes
 `ALTERA_HOME` with the starter settings and fake model calls. Please keep it that way: a new test that needs a model,
 a voice or a picture uses a fake one.
 
+## Fel's Studio ports
+
+| Service | Port |
+| --- | ---: |
+| Voice Lab | 8765 |
+| NPC Forge | 8766 |
+| Altera | 8767 for new installs |
+| Second copy of NPC Forge | 8768 |
+| Voice Lab MCP over HTTP | 8769 |
+| Altera voice service | 8770 |
+| ComfyUI | 8188 |
+| LM Studio | 1234 |
+| Ollama | 11434 |
+
+Use 8775 when an example needs an alternate port. Existing Altera instances keep the port in `config.yaml`.
+
+## Suite commits
+
+Use one local branch per suite step. Keep commits small, use a short imperative subject, and record the checks you ran
+in the commit body. Fast-forward local `main` when the step's checks pass.
+
 ## Some house rules
 
 - **Add a test with a fix**, ideally one that fails without it.

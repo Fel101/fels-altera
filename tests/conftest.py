@@ -39,6 +39,7 @@ def altera_config(tmp_path, monkeypatch):
 
     sandbox = tmp_path / "_altera_config"
     sandbox.mkdir()
+    monkeypatch.setenv("FELS_SUITE_DIR", str(tmp_path / "fels"))
     config_copy = sandbox / "config.yaml"
     local_copy = sandbox / "config.local.yaml"
     personality_copy = sandbox / "personality.yaml"

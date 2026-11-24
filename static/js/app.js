@@ -2053,7 +2053,7 @@ function renderHealth(data) {
 
 async function checkSystemHealth() {
     try {
-        const {res: response, data} = await MainUI.json('/api/health' + (currentSessionId ? `?session_id=${currentSessionId}` : ''), {cache: 'no-store', timeoutMs: 5000});
+        const {res: response, data} = await MainUI.json('/api/health/details' + (currentSessionId ? `?session_id=${currentSessionId}` : ''), {cache: 'no-store', timeoutMs: 5000});
         if (!response.ok) throw new Error('Health checks are temporarily unavailable.');
         renderHealth(data);
         if (data.voice?.status === 'warming' && (checkSystemHealth.voiceRetries = (checkSystemHealth.voiceRetries || 0) + 1) <= 24) MainUI.later(checkSystemHealth, 5000);

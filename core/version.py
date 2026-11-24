@@ -4,3 +4,4 @@ Semantic versioning: the third number for fixes, the second for new features, th
 person to do something (a setting that moved, data that cannot go back to an older version).
 """
 VERSION = "1.0.0"
+SUITE_API = 1

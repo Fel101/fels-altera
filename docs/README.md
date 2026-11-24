@@ -59,7 +59,7 @@ the app as it was on their date, not as it is now.
 
 ## Start and connect
 
-Follow the [root quickstart](../README.md). After setup, `start.bat` starts Altera and opens the browser. The default address is **http://127.0.0.1:5001**; the configured port can differ. On a fresh instance the first run asks for a name, sends a tiny test message to the selected model and shows which optional pieces are running, then opens Home. If nothing answers it says what to start for LM Studio and Ollama; nothing there blocks finishing.
+Follow the [root quickstart](../README.md). After setup, `start.bat` starts Altera and opens the browser. New installs use **http://127.0.0.1:8767**. Existing installs keep the port in `config.yaml`. On a fresh instance the first run asks for a name, sends a tiny test message to the selected model and shows which optional pieces are running, then opens Home. If nothing answers it says what to start for LM Studio and Ollama; nothing there blocks finishing.
 
 Start the model service you intend to use. In Settings, choose a provider and a model that service actually serves, or let the first run check it. The same check is available later as Settings → Setup check. Presets cover LM Studio, Ollama, vLLM, OpenAI, OpenRouter and a custom OpenAI-compatible endpoint. The starter example leaves the model blank; provider presets can supply a default name, but Altera does not install model assets for you. Select the exact identifier your server should run. Switching providers does not require restarting Altera. Altera does not automatically switch to a cloud model if a local provider fails.
 
@@ -101,7 +101,7 @@ Optional [check-ins and rituals](PRESENCE.md) use an unattended server scheduler
 
 `personality.yaml` defines the default persona. Imported companions get their identity from NPC Forge. `user_profile.yaml` stores user preferences and legacy profile/mood state; companion knowledge also lives in SQLite, ChromaDB and notebooks. Set `ALTERA_HOME` before Python imports to keep a separate instance. See the [schema and storage reference](Database_Schema.md).
 
-The portable starter uses loopback port 5001, LM Studio, a blank model, 1024 maximum reply tokens, notes enabled with an 8192-token context assumption, and voice, image generation, workspace tools and proactive check-ins disabled. Code fallbacks for omitted settings can differ; keep explicit settings when privacy matters.
+The portable starter uses loopback port 8767, LM Studio, a blank model, 1024 maximum reply tokens, notes enabled with an 8192-token context assumption, and voice, image generation, workspace tools and proactive check-ins disabled. Code fallbacks for omitted settings can differ; keep explicit settings when privacy matters.
 
 ## Privacy and recovery
 

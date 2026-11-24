@@ -33,7 +33,7 @@ def remote_headers(**extra):
     return {"Tailscale-User-Login": "owner@example.com", "X-Forwarded-Proto": "https", **extra}
 
 
-@pytest.mark.parametrize("base_url", ["http://localhost:5001", "http://127.0.0.1:5001", "http://[::1]:5001"])
+@pytest.mark.parametrize("base_url", ["http://localhost:8767", "http://127.0.0.1:8767", "http://[::1]:8767"])
 def test_local_browser_still_works(remote_client, base_url):
     assert remote_client.get("/private", base_url=base_url).status_code == 200
 

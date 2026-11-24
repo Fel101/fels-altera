@@ -35,7 +35,7 @@ module.exports=function mainPage(options={}){
   async fetch(url,init={}){const call={url,...init,body:typeof init.body==='string'?JSON.parse(init.body):init.body};calls.push(call);if(options.intercept){const reply=await options.intercept(call);if(reply!==undefined)return reply;}
    let data={};if(url==='/api/llm/providers')data={providers:[{key:'lmstudio',name:'Synthetic local',is_active:true},{key:'custom',name:'Synthetic custom'}],active_provider:'lmstudio',active_model:'synthetic-model'};
    else if(url.includes('/models'))data={models:['synthetic-model']};else if(url==='/api/voice/status')data={tts_enabled:false,stt_available:false};else if(url==='/api/offline/status')data={online:true};
-   else if(url.startsWith('/api/health'))data={llm:{status:'ok'},voice:{status:'disabled'},memory:{status:'ok'}};else if(url==='/api/tools/files')data={files:[]};else if(url==='/api/onboarding/status')data={complete:true};
+   else if(url.startsWith('/api/health/details'))data={llm:{status:'ok'},voice:{status:'disabled'},memory:{status:'ok'}};else if(url==='/api/tools/files')data={files:[]};else if(url==='/api/onboarding/status')data={complete:true};
    else if(url==='/api/profile')data={name:'Synthetic user'};else if(url==='/api/conversation-starters')data={starters:[]};else if(url==='/api/export')data={synthetic:true};else if(url.startsWith('/api/messages/'))data=[];
    return{ok:true,status:200,json:async()=>structuredClone(data),blob:async()=>new Blob([JSON.stringify(data)])};}
  });context.window=context;

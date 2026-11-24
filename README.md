@@ -52,8 +52,9 @@ it you can upload a picture, import a character card that has one, or use the pa
    .\start.bat
    ```
 
-4. Altera opens in your browser at **http://127.0.0.1:5001**. It asks for your name and lists the models LM Studio
+4. A fresh install opens in your browser at **http://127.0.0.1:8767**. It asks for your name and lists the models LM Studio
    serves. Pick one, and it sends one short test message to check the model answers. Then choose **Make a pal**.
+   Altera keeps the port in an existing `config.yaml`, including `5001`.
 
 ### With Ollama
 

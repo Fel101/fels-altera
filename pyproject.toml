@@ -19,3 +19,5 @@ ignore = ["B905"]
 # Shared fixtures are imported from other test modules and then named as test parameters, which is how pytest finds
 # them (F811). Tests keep short setup on one line (E701, E702).
 "tests/**" = ["F811", "E701", "E702"]
+# The suite contract requires the shared file unchanged and compatible with Python 3.8.
+"core/fels_suite.py" = ["UP017"]

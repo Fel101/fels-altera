@@ -1,6 +1,6 @@
 app:
   host: 127.0.0.1
-  port: 5001
+  port: 8767
   debug: false
 llm:
   provider: lmstudio

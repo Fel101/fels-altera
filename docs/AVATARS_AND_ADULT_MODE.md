@@ -33,9 +33,8 @@ The image age check sends the image to the configured vision-model provider; tha
 
 ## Quick start
 
-1. In NPC Forge (`start.bat`), make a character: roll one or describe one, then generate its **portrait**. Photorealistic
-   style gives the most natural pictures. The character must be **18 or older**. To build the woman you want, use NPC Forge's
-   private **Models** setting (hidden until you tick the 18+ box under About > *About Info.*; see the extension's README).
+1. In NPC Forge (`start.bat`), roll or describe a fictional character who is **18 or older**, then generate their
+   **portrait**. Use the **Modern life** setting for a contemporary character and **Photoreal** for a natural-looking portrait.
 2. Start ComfyUI, then Altera. Open **Settings > Avatar & photos > Choose or import an avatar** and import the character.
    The first import becomes the active avatar; her name, age, looks and background now match it.
 3. Ask for a picture in the chat ("send me a selfie in your kitchen"), or press the camera button and describe one.

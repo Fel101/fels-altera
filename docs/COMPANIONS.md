@@ -31,19 +31,17 @@ the gallery to that kind; pressing it again (or **Show everyone**) shows everyon
 
 ## Meeting someone new
 
-*Make someone new* asks NPC Forge for a new woman from its **Models** setting (heritage, hair colour and age group are optional;
-"Surprise me" leaves them to chance), waits for her portrait (duration depends on the source service and hardware) and imports her. *From my
-NPC Forge library* imports a character you already made there. Either way she goes through the same gates as any avatar (18 or
-older, no minor or real-person text, and the age check on her portrait).
+*Make someone new* rolls an adult from NPC Forge's **Modern life** setting. Choose Woman, Man, Non-binary or Any.
+Heritage, hair colour and age group can each be left on **Surprise me**. Forge paints the portrait, then Altera imports the
+companion. You can cancel while Forge paints. *From my NPC Forge library* imports someone you already made there.
+Both paths check the character's stated age, screen for descriptions of minors and real people, and age-check the portrait.
 
-**Everything about who she is comes from NPC Forge:** name, age, looks, background, **traits, how she talks, how she comes across**,
-quirk, dream, pet peeve and hobbies. Altera only copies it; edit the character in NPC Forge and the next time you open her the card is
-updated (her name, age and gender stay as imported). Characters made before NPC Forge had "how they talk / how they come across" have
-neither field: the prompt copes and lets her traits shape her voice.
+NPC Forge supplies the companion's name, age, looks, background, traits, speech style, demeanor, quirk, dream, pet peeve
+and hobbies. If you edit the character in NPC Forge, Altera updates the card the next time you open it and keeps the
+imported name, age and gender. Older cards without a speech style or demeanor still use the character's traits.
 
-If NPC Forge is not running, the Meet window says so and offers **Start NPC Forge** (it starts `server.py` only when nothing listens
-on the port: a second copy would share the port and steal requests). Making someone needs ComfyUI too, and the 18+ box in NPC Forge
-(About) ticked, because the Models setting is hidden until then. Altera only ever talks to a NPC Forge on this computer.
+If NPC Forge is stopped, the Meet window offers **Start NPC Forge**. Rolling a new companion needs NPC Forge API 44 or
+later and ComfyUI. It works with Forge's core installation. Altera talks to NPC Forge on this computer.
 
 ## Writing a companion without NPC Forge
 

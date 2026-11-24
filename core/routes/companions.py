@@ -484,7 +484,7 @@ def forge_start():
 
 @bp.route("/api/companions/make", methods=["POST"])
 def make_someone():
-    """Have NPC Forge make a new woman and paint her portrait. Body: {origin?, hair_color?, age_group?} (blank = surprise me)."""
+    """Roll an adult and queue their portrait. Body: {gender?, origin?, hair_color?, age_group?}."""
     if _cross_site():
         return _forbidden()
     data = request.get_json(silent=True) or {}
@@ -496,7 +496,7 @@ def make_someone():
 
 @bp.route("/api/companions/make/<npc_id>/<job_id>", methods=["GET"])
 def make_someone_status(npc_id, job_id):
-    """Where the portrait is. When it is done she is imported (the age check runs) and opened: {state: ready, companion}."""
+    """Check the finished portrait's age before importing and opening the companion."""
     s = companion.get_services()
     if not avatars.valid_id(npc_id):
         return jsonify({"error": "Not a character id."}), 400

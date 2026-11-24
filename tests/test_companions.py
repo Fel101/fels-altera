@@ -260,26 +260,33 @@ def fake_opener(routes, log=None):
     return wrapped
 
 
-CONFIG = {"api_version": 4, "settings": {"models": {
+CONFIG = {"api_version": 48, "settings": {"modern": {
     "origins": [{"id": "japanese", "label": "Japanese"}], "hair_colors": ["blonde", "black"],
-    "age_groups": [{"id": "young_adult", "label": "Ages 18-29"}]}}}
+    "age_groups": [{"id": "child", "label": "Child (6-12)"}, {"id": "teen", "label": "Teen (13-17)"},
+                   {"id": "young_adult", "label": "Ages 18-29"}]}}, "styles": {"photoreal": {"label": "Photoreal"}}}
+MEET_DRAFT = {"setting": "modern", "adult": True, "style": "photoreal", "freeform": False,
+              "profile": {"age": 34, "first_name": "Zoe", "personality": ["warm"], "speech": "Soft-spoken"}}
 
 
 def test_forge_status_says_what_is_missing_in_plain_words():
     import urllib.error
     down = forge.ForgeClient({}, opener=fake_opener({"GET /api/health": urllib.error.URLError(ConnectionRefusedError())}))
     assert down.status()["online"] is False and "not running" in down.status()["message"]
-    locked = forge.ForgeClient({}, opener=fake_opener({"GET /api/config": {"api_version": 4, "settings": {"modern": {}}},
-                                                       "GET /api/health": {"online": True}}))
-    assert locked.status()["models"] is False and "18+" in locked.status()["message"]
-    old = forge.ForgeClient({}, opener=fake_opener({"GET /api/config": {**CONFIG, "api_version": 3}, "GET /api/health": {"online": True}}))
-    assert old.status()["outdated"] is True and "Restart" in old.status()["message"]
+    no_modern = forge.ForgeClient({}, opener=fake_opener({"GET /api/config": {**CONFIG, "settings": {"models": {"label": "Models"}}}}))
+    assert no_modern.status()["meet_supported"] is False and "Modern life" in no_modern.status()["meet_message"]
+    with pytest.raises(forge.ForgeError, match="Modern life"):
+        no_modern.make_someone()
+    old = forge.ForgeClient({}, opener=fake_opener({"GET /api/config": {**CONFIG, "api_version": 43}}))
+    assert old.status()["outdated"] is True and "Update NPC Forge" in old.status()["meet_message"]
+    with pytest.raises(forge.ForgeError, match="Update NPC Forge"):
+        old.make_someone()
     nocomfy = forge.ForgeClient({}, opener=fake_opener({"GET /api/config": CONFIG, "GET /api/health": {"online": False}}))
     assert "ComfyUI" in nocomfy.status()["message"]
     ok = forge.ForgeClient({}, opener=fake_opener({"GET /api/config": CONFIG, "GET /api/health": {"online": True}}))
     status = ok.status()
-    assert status["online"] and status["models"] and not status["outdated"] and status["message"] == ""
+    assert status["online"] and status["meet_supported"] and not status["outdated"] and status["message"] == ""
     assert status["options"]["origins"] == [{"id": "japanese", "label": "Japanese"}] and status["options"]["hair_colors"] == ["blonde", "black"]
+    assert status["options"]["age_groups"] == [{"id": "young_adult", "label": "Ages 18-29"}]
 
 
 def test_only_this_computer_is_ever_asked():
@@ -289,20 +296,37 @@ def test_only_this_computer_is_ever_asked():
     assert forge.start({"companion": {"forge": {"url": "http://example.com:8765"}}})["started"] is False
 
 
-def test_making_someone_asks_for_a_portrait_only_and_only_for_known_choices():
+@pytest.mark.parametrize("gender", ["female", "male", "nonbinary", "", "any", "unknown"])
+@pytest.mark.parametrize("api_version", [44, 48])
+def test_meet_rolls_an_adult_in_modern_life_and_never_asks_for_models(gender, api_version):
     log = []
-    routes = {"GET /api/config": CONFIG, "GET /api/health": {"online": True},
+    routes = {"GET /api/config": {**CONFIG, "api_version": api_version}, "GET /api/gpu": {"ready": True}, "POST /api/roll": MEET_DRAFT,
               "POST /api/generate": {"npc_ids": ["zoe-park-9a8b7c"], "jobs": [{"id": "j1"}]}}
     client = forge.ForgeClient({}, opener=fake_opener(routes, log))
-    made = client.make_someone({"origin": "japanese", "hair_color": "Any", "age_group": "", "occupation": "nurse", "junk": 1})
+    made = client.make_someone({"gender": gender, "origin": "japanese", "hair_color": "Any", "age_group": "teen",
+                                "occupation": "nurse", "adult": False, "setting": "models", "freeform": "someone famous"})
     assert made == {"npc_id": "zoe-park-9a8b7c", "job_id": "j1"}
-    body = json.loads(next(data for key, data in log if key == "POST /api/generate"))
-    assert body["setting"] == "models" and body["style"] == "photoreal" and body["count"] == 1
-    assert body["constraints"] == {"origin": "japanese"}                                     # 'Any', blanks and unknown keys are dropped
-    assert body["assets"] == {"portrait": True, "sprite": False, "expressions": []}
-    with pytest.raises(forge.ForgeError, match="18\\+"):
-        forge.ForgeClient({}, opener=fake_opener({"GET /api/config": {"api_version": 4, "settings": {}},
-                                                  "GET /api/health": {"online": True}})).make_someone()
+    constraints = {"origin": "japanese"}
+    if gender in ("female", "male", "nonbinary"):
+        constraints["gender"] = gender
+    assert [(key, json.loads(body)) for key, body in log if key.startswith("POST")] == [
+        ("POST /api/roll", {"setting": "modern", "style": "photoreal", "adult": True, "constraints": constraints}),
+        ("POST /api/generate", {"npc": MEET_DRAFT, "style": "photoreal",
+                                "assets": {"portrait": True, "sprite": False, "expressions": []},
+                                "options": {"quality": "standard"}}),
+    ]
+
+
+@pytest.mark.parametrize(("changes", "message"), [
+    ({"adult": False}, "adult character"),
+    ({"profile": {**MEET_DRAFT["profile"], "age": 17}}, "18 or older"),
+    ({"appearance": {"extra": "celebrity lookalike"}}, "real person's likeness"),
+])
+def test_meet_does_not_queue_an_unsafe_rolled_draft(changes, message):
+    routes = {"GET /api/config": CONFIG, "GET /api/gpu": {"ready": True}, "POST /api/roll": {**MEET_DRAFT, **changes}}
+    client = forge.ForgeClient({}, opener=fake_opener(routes))
+    with pytest.raises(forge.ForgeError, match=message):
+        client.make_someone()
 
 
 def test_a_job_is_reported_as_queued_running_done_or_failed():
@@ -356,7 +380,7 @@ def test_from_api_44_a_job_gives_its_code_and_who_holds_the_gpu_and_stops_by_its
     assert client.job("a") == {"state": "error", "note": BUSY, "code": "gpu_busy", "holders": holders, "blocked": ""}
     assert client.job("b") == {"state": "running", "note": "Expression: happy", "code": "", "holders": [], "blocked": ""}
     assert client.job("c")["code"] == "comfy_down" and client.job("c")["blocked"] == ""
-    old = forge.ForgeClient({}, opener=fake_opener({"GET /api/config": CONFIG, "GET /api/jobs": jobs}))
+    old = forge.ForgeClient({}, opener=fake_opener({"GET /api/config": {**CONFIG, "api_version": 43}, "GET /api/jobs": jobs}))
     assert old.job("a") == {"state": "error", "note": BUSY, "code": "", "holders": [], "blocked": BUSY}
 
 
@@ -382,7 +406,7 @@ class FakeForge:
         self.calls = []
 
     def status(self):
-        return {"online": True, "models": True, "message": "", "options": {}, "api_version": 4, "outdated": False, "comfy_online": True}
+        return {"online": True, "meet_supported": True, "message": "", "options": {}, "api_version": 48, "comfy_online": True}
 
     def make_someone(self, constraints=None):
         self.calls.append(constraints)
@@ -400,8 +424,10 @@ def test_meeting_someone_new_makes_her_waits_for_the_portrait_then_imports_and_o
     fake = FakeForge(state="running")
     monkeypatch.setattr(routes, "_forge", lambda: fake)
     make_forge(world.forge, npc_id="zoe-park-9a8b7c", first="Zoe")
-    started = client.post("/api/companions/make", json={"origin": "japanese"})
-    assert started.status_code == 202 and started.get_json() == {"npc_id": "zoe-park-9a8b7c", "job_id": "j1"} and fake.calls == [{"origin": "japanese"}]
+    choices = {"gender": "nonbinary", "origin": "japanese"}
+    started = client.post("/api/companions/make", json=choices)
+    assert started.status_code == 202 and started.get_json() == {"npc_id": "zoe-park-9a8b7c", "job_id": "j1"}
+    assert fake.calls == [choices]
     url = "/api/companions/make/zoe-park-9a8b7c/j1"
     assert client.get(url).get_json() == {"state": "running", "note": "Portrait"}
     assert world.avatars.get("zoe-park-9a8b7c") is None

@@ -688,23 +688,36 @@
                 <h3 id="meetTitle">Meet someone new</h3>
                 <button type="button" data-click="closeMeetModal" class="close-btn" title="Close">×</button>
             </div>
-            <p>Every companion is made in NPC Forge, with a personality of their own. They arrive knowing nothing about you: everything they learn, they learn from you.</p>
+            <p>NPC Forge creates a fictional adult with a personality of their own. Everything they learn about you comes from your conversations.</p>
             <div class="meet-tabs">
                 <button type="button" id="meetTabMake" class="active" data-click="showMeetTab" data-args='["make"]'>Make someone new</button>
                 <button type="button" id="meetTabLibrary" data-click="showMeetTab" data-args='["library"]'>From my NPC Forge library</button>
             </div>
             <div id="meetMake">
                 <div class="meet-grid">
+                    <label>Gender
+                        <select id="meetGender">
+                            <option value="">Any</option>
+                            <option value="female">Woman</option>
+                            <option value="male">Man</option>
+                            <option value="nonbinary">Non-binary</option>
+                        </select>
+                    </label>
                     <label>Heritage <select id="meetOrigin"></select></label>
                     <label>Hair colour <select id="meetHair"></select></label>
                     <label>Age <select id="meetAge"></select></label>
                 </div>
-                <p class="setting-hint" id="meetNote"></p>
+                <p class="setting-hint" id="meetNote" role="status"></p>
                 <div class="modal-actions" style="justify-content: flex-start;">
                     <button type="button" class="primary" id="meetGo" data-click="makeSomeone" disabled>Make someone</button>
                     <button type="button" id="meetStart" data-click="startForgeFromHer" hidden>Start NPC Forge</button>
                 </div>
-                <div class="meet-progress" id="meetProgress"></div>
+                <div class="meet-progress" id="meetProgress" hidden>
+                    <div class="photo-loading">
+                        <span class="photo-spinner" id="meetSpinner" aria-hidden="true" hidden></span>
+                        <span><span id="meetProgressNote" role="status"></span><span id="meetElapsed" aria-hidden="true"></span></span>
+                    </div>
+                </div>
             </div>
             <div id="meetLibrary" hidden>
                 <p class="setting-hint" id="meetLibraryHint"></p>

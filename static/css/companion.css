@@ -669,7 +669,7 @@
     background: var(--bg-tertiary); color: var(--text-secondary); font: inherit; font-size: 0.85rem; cursor: pointer;
 }
 .meet-tabs button.active { border-color: var(--accent); color: var(--text-primary); background: var(--bg-hover); }
-.meet-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 8px; }
+.meet-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 155px), 1fr)); gap: 12px; margin-bottom: 8px; }
 .meet-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 0.78rem; color: var(--text-muted); }
 .meet-grid select {
     padding: 8px; border-radius: var(--radius-sm); border: 1px solid var(--border);

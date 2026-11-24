@@ -253,7 +253,7 @@ let meetRun = 0;                                                  // changes whe
 function openMeetModal() {
     closeSidebarOnMobile();
     byId('meetOverlay').style.display = 'flex';
-    byId('meetProgress').replaceChildren();
+    meetProgress('', false);
     showMeetTab('make');
     loadMeetStatus();
     loadMeetLibrary();
@@ -346,15 +346,14 @@ async function loadMeetStatus() {
     fillSelect(byId('meetOrigin'), 'Surprise me', options.origins || []);
     fillSelect(byId('meetHair'), 'Surprise me', (options.hair_colors || []).map(c => ({ id: c, label: c })));
     fillSelect(byId('meetAge'), 'Surprise me', options.age_groups || []);
-    const ready = status.online && status.models && status.comfy_online !== false;
+    const ready = status.online && status.meet_supported && status.comfy_online !== false;
     go.disabled = !ready;
-    start.hidden = status.online;
+    start.hidden = !status.not_running;
     note.classList.toggle('error', !ready);
     const message = ready
-        ? (status.outdated ? status.message : 'NPC Forge is ready. Pick what you like or leave everything on Surprise me.')
-        : (status.message || 'NPC Forge cannot make someone new right now.');
+        ? 'NPC Forge is ready.'
+        : (status.meet_message || status.message || 'NPC Forge cannot make someone new right now.');
     note.textContent = [message, ...(status.notices || [])].join(' ');
-    if (ready && status.outdated) note.classList.add('error');
 }
 
 async function startForgeFromHer() {
@@ -384,39 +383,65 @@ async function startForgeFromHer() {
     }
 }
 
-function meetProgress(text, isError, cancel) {
+function meetProgress(text, isError, cancel, elapsed = '') {
     if (!companionViewOwner.active) return;
     const box = byId('meetProgress');
-    box.replaceChildren(
-        h('div', { class: 'photo-loading' }, isError ? null : h('span', { class: 'photo-spinner' }), h('span', { text })),
-        cancel ? h('button', { type: 'button', class: 'small', text: 'Cancel', onclick: cancel }) : null);
+    box.hidden = !text;
+    const note = byId('meetProgressNote');
+    if (note.textContent !== text) note.textContent = text;
+    byId('meetSpinner').hidden = !text || isError;
+    byId('meetElapsed').textContent = elapsed;
+    const button = box.querySelector('button');
+    if (cancel && !button) box.append(h('button', { type: 'button', class: 'small', text: 'Cancel', onclick: cancel }));
+    if (!cancel) button?.remove();
     box.classList.toggle('error', !!isError);
 }
 
 async function makeSomeone() {
-    const body = { origin: byId('meetOrigin').value, hair_color: byId('meetHair').value, age_group: byId('meetAge').value };
+    const body = { gender: byId('meetGender').value, origin: byId('meetOrigin').value,
+        hair_color: byId('meetHair').value, age_group: byId('meetAge').value };
     const run = ++meetRun;
-    byId('meetGo').disabled = true;
+    const go = byId('meetGo');
+    const hadFocus = document.activeElement === go;
+    go.disabled = true;
+    meetProgress('NPC Forge is starting the portrait. You can cancel once it’s queued.', false);
     let started;
     try {
         started = await cApi('/api/companions/make', { method: 'POST', body });
     } catch (err) {
-        if (!companionViewOwner.active) return;
+        if (!companionViewOwner.active || run !== meetRun) return;
         meetProgress(err.message, true);
-        byId('meetGo').disabled = false;
+        go.disabled = false;
+        if (hadFocus && document.activeElement === document.body) go.focus();
         return;
     }
     if (!companionViewOwner.active || run !== meetRun) return;
     const url = `/api/companions/make/${started.npc_id}/${started.job_id}`;
     const began = Date.now();
     let retried = false;
-    const cancel = async () => { meetRun++; try { await cApi(url, { method: 'DELETE' }); } catch (e) { /* nothing to cancel */ } meetProgress('Cancelled.', true); byId('meetGo').disabled = false; };
+    const cancel = async () => {
+        if (run !== meetRun) return;
+        const cancelling = ++meetRun;
+        meetProgress('Cancelling the portrait…', false);
+        try {
+            await cApi(url, { method: 'DELETE' });
+            if (cancelling === meetRun) meetProgress('Cancelled.', true);
+        } catch (err) {
+            if (cancelling === meetRun) meetProgress(err.message, true);
+        }
+        if (companionViewOwner.active && cancelling === meetRun) {
+            go.disabled = false;
+            go.focus();
+        }
+    };
+    meetProgress('NPC Forge is making their portrait…', false, cancel);
+    if (hadFocus && document.activeElement === document.body) byId('meetProgress').querySelector('button')?.focus();
     while (run === meetRun) {
         let answer;
         try {
             answer = await cApi(url);
         } catch (err) {
-            meetProgress(err.message, true);
+            if (run === meetRun) meetProgress(err.message, true);
             break;
         }
         if (!companionViewOwner.active || run !== meetRun) break;
@@ -428,7 +453,7 @@ async function makeSomeone() {
         }
         if (answer.state === 'error' && answer.code === 'gpu_busy' && !retried) {
             retried = true;
-            meetProgress('Checking whether NPC Forge can resume the portrait…', false);
+            meetProgress('Checking whether NPC Forge can resume the portrait…', false, cancel);
             try {
                 await cApi(`${url}/retry`, { method: 'POST' });
             } catch (err) {
@@ -442,10 +467,14 @@ async function makeSomeone() {
             break;
         }
         const seconds = Math.round((Date.now() - began) / 1000);
-        meetProgress(`NPC Forge is making them${answer.note ? ` (${answer.note})` : ''}… ${seconds}s`, false, cancel);
+        const step = answer.note && answer.note !== 'Portrait' ? ` (${answer.note})` : '';
+        meetProgress(`NPC Forge is making their portrait${step}…`, false, cancel, ` ${seconds}s`);
         await sleep(2000);
     }
-    if (run === meetRun || byId('meetOverlay').style.display !== 'none') byId('meetGo').disabled = false;
+    if (run === meetRun) {
+        go.disabled = false;
+        if (document.activeElement === document.body) go.focus();
+    }
 }
 
 async function loadMeetLibrary() {

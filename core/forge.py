@@ -1,10 +1,9 @@
 """
 Altera — NPC Forge, where every companion is made.
 
-Altera discovers NPC Forge's local web server to make someone new: it asks for a "Models" character
-(an adult woman with a personality, made from the shared tables), waits for the portrait, and then imports her like any other
-avatar (core/avatars.py reads the character from Forge's library folder and the age check runs). Characters made by hand in NPC
-Forge are imported the same way.
+Altera discovers NPC Forge's local web server to make someone new. It rolls an adult from the Modern life tables, asks Forge to
+paint their portrait, and imports them like any other avatar (core/avatars.py reads the character and checks the portrait's age).
+Characters made by hand in NPC Forge are imported the same way.
 
 Pals and characters can have a portrait painted by NPC Forge too (core/portraits.py): from a description, or redrawn from a
 card's picture. Those use NPC Forge's ordinary settings, never the adult "models" one, and need no 18+ box.
@@ -33,14 +32,15 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from core import fels_suite
+from core import avatars, fels_suite, safety
 
 LOGGER = logging.getLogger(__name__)
 
 DEFAULT_URL = f"http://127.0.0.1:{fels_suite.PORTS['npc-forge']}"
-REQUIRED_API = 4                       # the NPC Forge API version that has personalities (speech, demeanor)
 GPU_API = 44                           # GET /api/gpu, job and step `code`, gpu_busy `holders`, roll `adult`, an empty surname
-SETTING = "models"                     # the setting made for Altera: adult women, ordinary clothes, photoreal
+MEET_SETTING = "modern"
+MEET_STYLE = "photoreal"
+UNDERAGE_GROUPS = {"child", "teen"}     # Forge's core age-group IDs below 18
 LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 ALLOWED = {"origin": str, "hair_color": str, "age_group": str}     # what the person can ask for
 MAX_RESPONSE_BYTES = 4 * 1024 * 1024
@@ -58,6 +58,7 @@ GPU_ADVICE = {
 }
 ENGINE_KINDS = ("image", "edit")
 _ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,127}$")
+_JOB_ID = re.compile(r"[A-Za-z0-9_-]{1,128}")
 _CHOICE = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 
 
@@ -210,8 +211,8 @@ class ForgeClient:
 
     # ---- what is available ----------------------------------------------------------------------------------------
     def status(self) -> dict:
-        """{online, api_version, outdated, models, comfy_online, message, options}. Never raises."""
-        out = {"online": False, "api_version": None, "outdated": False, "models": False, "comfy_online": None,
+        """Reachability, Meet availability, and the options for Meet and portraits."""
+        out = {"online": False, "api_version": None, "outdated": False, "meet_supported": False, "comfy_online": None,
                "message": "", "not_running": False, "options": {}, "url": self.url, "styles": [], "settings": [],
                "engines": {"image": [], "edit": []}, "default_engines": {"image": "", "edit": ""}}
         try:
@@ -229,14 +230,14 @@ class ForgeClient:
         out["online"] = True
         out["api_version"] = cfg.get("api_version")
         self._api_version = out["api_version"] or 0
-        out["outdated"] = (cfg.get("api_version") or 1) < REQUIRED_API
-        setting = (cfg.get("settings") or {}).get(SETTING)
-        out["models"] = bool(setting)
+        out["outdated"] = not self.modern(out)
+        setting = (cfg.get("settings") or {}).get(MEET_SETTING)
+        out["meet_supported"] = not out["outdated"] and isinstance(setting, dict)
         # what a pal's or a character's portrait can use: every art style, and every setting but the adult one
         out["styles"] = [{"id": k, "label": str((v or {}).get("label") or k)} for k, v in (cfg.get("styles") or {}).items()
                          if isinstance(k, str) and _CHOICE.match(k)]
         out["settings"] = [{"id": k, "label": str((v or {}).get("label") or k)} for k, v in (cfg.get("settings") or {}).items()
-                           if isinstance(k, str) and _CHOICE.match(k) and k != SETTING]
+                           if isinstance(k, str) and _CHOICE.match(k) and k != "models"]
         # the image engines (a picture from words) and edit engines (a redrawn photo, the living portrait) NPC Forge has, and
         # the ones its own settings use when none is chosen
         engines = cfg.get("engines") if isinstance(cfg.get("engines"), dict) else {}
@@ -247,25 +248,24 @@ class ForgeClient:
                                     for e in rows if isinstance(e, dict) and isinstance(e.get("id"), str) and _CHOICE.match(e["id"])]
             chosen = defaults.get(f"{kind}_model")
             out["default_engines"][kind] = chosen if chosen in {e["id"] for e in out["engines"][kind]} else ""
-        if setting:
+        if isinstance(setting, dict):
             out["options"] = {
                 "origins": [{"id": o["id"], "label": o["label"]} for o in setting.get("origins") or []],
                 "hair_colors": list(setting.get("hair_colors") or []),
-                "age_groups": [{"id": a["id"], "label": a["label"]} for a in setting.get("age_groups") or []],
+                "age_groups": [{"id": a["id"], "label": a["label"]} for a in setting.get("age_groups") or []
+                               if a["id"] not in UNDERAGE_GROUPS],
             }
         if out["comfy_online"] is None:
             try:
                 out["comfy_online"] = self._request_at(self.url, "GET", "/api/health", timeout=2.5).get("online")
             except (ForgeError, AttributeError):
                 pass
-        if not setting:
-            out["message"] = ("NPC Forge has no Models setting right now. Open NPC Forge, choose About, and tick the 18+ box "
-                              "(the Models setting appears once it is ticked).")
-        elif out["outdated"]:
-            out["message"] = ("NPC Forge is an older version that does not give characters a personality of their own yet. "
-                              "Restart NPC Forge to get the new one.")
-        elif out["comfy_online"] is False:
+        if out["comfy_online"] is False:
             out["message"] = "ComfyUI is not reachable, so NPC Forge cannot paint a portrait. Start ComfyUI first."
+        if out["outdated"]:
+            out["meet_message"] = "This version of NPC Forge cannot roll adult companions. Update NPC Forge and try again."
+        elif not out["meet_supported"]:
+            out["meet_message"] = "NPC Forge's Modern life setting is missing. Restore it in NPC Forge and try again."
         return out
 
     # ---- the GPU (API 44) ---------------------------------------------------------------------------------------------
@@ -351,29 +351,52 @@ class ForgeClient:
     # ---- making someone -------------------------------------------------------------------------------------------
     @staticmethod
     def clean_constraints(constraints) -> dict:
+        if not isinstance(constraints, dict):
+            return {}
         out = {}
         for key, kind in ALLOWED.items():
-            value = (constraints or {}).get(key)
+            value = constraints.get(key)
             if isinstance(value, kind) and value.strip() and value.strip().lower() not in ("any", "surprise"):
                 out[key] = value.strip()[:60]
+        if out.get("age_group") in UNDERAGE_GROUPS:
+            out.pop("age_group")
+        gender = constraints.get("gender")
+        if gender in GENDERS:
+            out["gender"] = gender
         return out
 
     def make_someone(self, constraints=None) -> dict:
-        """Ask NPC Forge for one new Models character and her portrait. Returns {npc_id, job_id}."""
+        """Roll one adult in Modern life and queue their portrait. Returns {npc_id, job_id}."""
         status = self.status()
-        if not status["online"] or not status["models"] or (status["comfy_online"] is False and not self.modern(status)):
-            raise ForgeError(status["message"] or "NPC Forge cannot make someone new right now.")
+        if not status["online"] or not status["meet_supported"]:
+            raise ForgeError(status.get("meet_message") or status["message"] or "NPC Forge cannot make someone new right now.")
         self.ready_gpu(status)
+        # Forge's batch generation does not pass `adult` to the roller. Queue the checked draft from /api/roll instead.
+        # The structured portrait prompt starts its description with the character's adult age.
+        draft = self._call("POST", "/api/roll", {"setting": MEET_SETTING, "style": MEET_STYLE, "adult": True,
+                                               "constraints": self.clean_constraints(constraints)}, timeout=30)
+        profile = draft.get("profile") if isinstance(draft, dict) else None
+        if not (isinstance(profile, dict) and type(profile.get("age")) is int and draft.get("adult") is True
+                and draft.get("setting") == MEET_SETTING and draft.get("style") == MEET_STYLE
+                and draft.get("freeform") is False):
+            raise ForgeError("NPC Forge did not return an adult character. Try rolling again.")
+        try:
+            problem = safety.card_problem(avatars.card_from_npc(draft))
+        except (avatars.AvatarError, AttributeError, TypeError):
+            raise ForgeError("NPC Forge returned an invalid character. Try rolling again.") from None
+        if problem:
+            raise ForgeError(f"{problem} Try rolling again.")
         answer = self._call("POST", "/api/generate", {
-            "setting": SETTING, "style": "photoreal", "count": 1,
-            "constraints": self.clean_constraints(constraints),
+            "npc": draft, "style": MEET_STYLE,
             "assets": {"portrait": True, "sprite": False, "expressions": []},
             "options": {"quality": "standard"},
         }, timeout=30)
-        ids, jobs = answer.get("npc_ids") or [], answer.get("jobs") or []
-        if not ids or not jobs:
-            raise ForgeError("NPC Forge did not start a portrait.")
-        return {"npc_id": ids[0], "job_id": jobs[0].get("id")}
+        ids, jobs = (answer.get("npc_ids") or [], answer.get("jobs") or []) if isinstance(answer, dict) else ([], [])
+        npc_id = ids[0] if isinstance(ids, list) and ids else None
+        job_id = jobs[0].get("id") if isinstance(jobs, list) and jobs and isinstance(jobs[0], dict) else None
+        if not avatars.valid_id(npc_id) or not isinstance(job_id, str) or not _JOB_ID.fullmatch(job_id):
+            raise ForgeError("NPC Forge did not start a portrait. Check NPC Forge and try again.")
+        return {"npc_id": npc_id, "job_id": job_id}
 
     # ---- a portrait for a pal or a character ---------------------------------------------------------------------------
     @staticmethod
@@ -496,7 +519,7 @@ class ForgeClient:
                 "blocked": reason if not modern and GPU_BUSY in reason else ""}
 
     def cancel(self, job_id) -> None:
-        if not isinstance(job_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", job_id):
+        if not isinstance(job_id, str) or not _JOB_ID.fullmatch(job_id):
             return
         try:
             self._call("POST", f"/api/jobs/{job_id}/cancel", {})

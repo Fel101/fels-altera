@@ -91,7 +91,8 @@
 // sample says why it stayed silent, and a portrait can come from NPC Forge's library or an upload (home.js).
 // v110: the setup page links to NPC Forge, and About links to all four Fel's Studio apps.
 // v111: suite GPU status, reply waiting, and NPC Forge connection details.
-const CACHE_VERSION = 'v111';
+// v112: Meet someone new uses Forge's Modern life setting and offers a gender choice.
+const CACHE_VERSION = 'v112';
 const STATIC_CACHE = `altera-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `altera-dynamic-${CACHE_VERSION}`;
 

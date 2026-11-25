@@ -98,9 +98,9 @@ class LivingStore:
         return _sha(path.read_bytes()) if path else None
 
     def _kept_back(self, avatar_id) -> frozenset:
-        """Frames never shown for this person: a pal in kids mode has no flirty face (core/kids.py)."""
-        from core import kids
-        return KIDS_KEPT_BACK if kids.is_on(self.avatars.get(avatar_id)) else frozenset()
+        """Withhold optional expressions under the core setting and in Kids mode."""
+        from core import adult, kids
+        return KIDS_KEPT_BACK if kids.is_on(self.avatars.get(avatar_id)) or adult.effective_level() == "off" else frozenset()
 
     def frame_path(self, avatar_id, frame) -> Path | None:
         """A frame's file, only while it belongs to the portrait she has now and was not refused."""

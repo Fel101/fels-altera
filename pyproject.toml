@@ -2,6 +2,7 @@
 testpaths = ["tests"]
 pythonpath = ["."]
 norecursedirs = ["backup", ".venv", "__pycache__", "data", "static/audio", "helpers"]
+markers = ["requires_addon: exercises the separately installed Altera add-on"]
 
 [tool.ruff]
 target-version = "py311"

@@ -553,7 +553,7 @@ def test_a_finished_living_portrait_says_its_frames_are_still_being_copied(world
     assert done["portrait"]["living"] is False
 
 
-def test_a_pal_in_kids_mode_never_shows_the_flirty_face(world):
+def test_core_withholds_the_flirty_face_in_kids_mode_and_ordinary_chat(world):
     from core import kids
     kids.enable(True)
     pal = pals.create(world.avatars, "Nova", "sunny", "", engine="kokoro", kids=True)
@@ -564,8 +564,9 @@ def test_a_pal_in_kids_mode_never_shows_the_flirty_face(world):
     services.living.sync(pal["id"])
     assert services.living.status(pal["id"])["frames"] == ["blink", "happy", "talking"]
     assert services.living.frame_path(pal["id"], "flirty") is None
-    pals.update(world.avatars, pal["id"], kids=False)                                       # an ordinary pal may
-    assert "flirty" in services.living.status(pal["id"])["frames"]
+    pals.update(world.avatars, pal["id"], kids=False)
+    assert services.living.frame_path(pal["id"], "flirty") is None
+    assert (world.avatars.root / pal["id"] / "living" / "flirty.png").is_file()
 
 
 def test_the_engines_chosen_for_a_portrait_are_kept_and_the_living_portrait_uses_the_redraw_one(world):

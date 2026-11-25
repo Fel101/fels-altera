@@ -69,7 +69,7 @@ def prepare():
         if not config_path.exists():
             shutil.copyfile(CODE_ROOT / 'config.example.yaml', config_path)
         if home != CODE_ROOT:
-            for source, target in [('personality.yaml', 'personality.yaml'), ('content/adult_tiers.yaml', 'content/adult_tiers.yaml')]:
+            for source, target in [('personality.yaml', 'personality.yaml')]:
                 path = home / target
                 if not path.exists():
                     path.parent.mkdir(parents=True, exist_ok=True)

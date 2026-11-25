@@ -78,6 +78,9 @@ def enable(understood, store=None) -> dict:
     """Unlock kids mode for this Altera. Needs understood=True: the person read that it is a guardrail, not a guarantee."""
     if understood is not True:
         raise KidsError("Confirm that you understand kids mode is a guardrail, not a guarantee.", 400)
+    from core import addons
+    if addons.installed():
+        raise KidsError(addons.KIDS_BLOCK)
     store = store or get_datastore()
     store.set_key(STATE_KEY, {"enabled": True, "enabled_at": _now()})
     return get_state(store)

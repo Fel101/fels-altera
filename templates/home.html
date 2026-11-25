@@ -23,6 +23,7 @@
         </header>
 
         <p id="homeStatus" class="home-status" role="status" aria-live="polite">Loading people…</p>
+        {% if addon_notice %}<p class="home-muted">{{ addon_notice }}</p>{% endif %}
 
         <section id="homeInbox" class="home-inbox" aria-labelledby="homeInboxTitle" hidden>
             <h2 id="homeInboxTitle"></h2>

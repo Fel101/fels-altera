@@ -55,7 +55,7 @@ def altera_config(tmp_path, monkeypatch):
     monkeypatch.setattr(config_module, "PERSONALITY_PATH", personality_copy)
     monkeypatch.setattr(config_module, 'ROOT', sandbox)
     monkeypatch.setattr(config_module, 'SECRET_KEY_PATH', sandbox / 'data/secret_key')
-    from core import datastore, memory, profile, companion, tts, adult
+    from core import addons, datastore, memory, profile, companion, tts
     from core.routes import admin, agent_tools
     monkeypatch.setattr(datastore, '_datastore_instance', datastore.DataStore(str(sandbox / 'data/conversations.db')))
     monkeypatch.setattr(memory, 'memory_manager', memory.MemoryManager())
@@ -64,12 +64,8 @@ def altera_config(tmp_path, monkeypatch):
     monkeypatch.setattr(tts, 'AUDIO_CACHE_DIR', str(sandbox / 'data/cache/tts'))
     monkeypatch.setattr(admin, 'OFFLINE_QUEUE_FILE', str(sandbox / 'data/offline_queue.json'))
     monkeypatch.setattr(agent_tools, 'PROJECT_ROOT', sandbox)
-    tiers = sandbox / 'content/adult_tiers.yaml'
-    tiers.parent.mkdir()
-    from core.paths import CODE_ROOT
-    shutil.copy(CODE_ROOT / 'content/adult_tiers.yaml', tiers)
-    monkeypatch.setattr(adult, 'TIERS_PATH', tiers)
-    monkeypatch.setattr(adult, '_cache', {'mtime': None, 'data': {}, 'needs': {}})
+    (sandbox / "content").mkdir()
+    monkeypatch.setattr(addons, '_runtime', None)
     # An api_key in the developer's real environment must not leak into a test's expectations.
     for name in list(os.environ):
         if name.startswith("ALTERA_") and name.endswith("_API_KEY"):
@@ -80,7 +76,25 @@ def altera_config(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def _no_real_model_and_a_fresh_notes_service(monkeypatch):
+def _optional_addon(request, altera_config):
+    if not request.node.get_closest_marker("requires_addon"):
+        return
+    from flask import Flask
+    from core import addons
+    path = os.environ.get("ALTERA_TEST_ADDON")
+    if not path:
+        pytest.skip("Run with ALTERA_TEST_ADDON pointing to the optional Altera add-on package.")
+    folder = Path(path)
+    if not (folder / "__init__.py").is_file():
+        pytest.fail("ALTERA_TEST_ADDON does not point to an add-on package.")
+    app = Flask("altera_test_addon")
+    addons.install(app, folder.parent)
+    if folder.name not in app.extensions["altera_addons"].loaded:
+        pytest.fail("The requested add-on did not register.")
+
+
+@pytest.fixture(autouse=True)
+def _no_real_model_and_a_fresh_notes_service(monkeypatch, altera_config):
     notes.set_notes_service(None)
     real_call = notes.NotesService._call
 
@@ -165,6 +179,9 @@ def _no_real_model_and_a_fresh_notes_service(monkeypatch):
     from core import chat
     chat.reset_chat_engine()
     yield
+    # Keep workers attached to this test's temporary paths and substitutes until they retire.
+    from core.state_gate import STATE
+    assert STATE.join_jobs(timeout=8), "A background job outlived its test instance."
     chat.reset_chat_engine()
     notes.set_notes_service(None)
     memory_module.set_memory_writer(None)

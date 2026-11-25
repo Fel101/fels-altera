@@ -19,7 +19,8 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/knowledge.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/companion.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/kids-view.css') }}">
-    <!-- Paint the saved theme, mood (adult-mode level) and discreet mode before anything shows, so the page never flashes -->
+    {% for panel in addon_panels if panel.stylesheet %}<link rel="stylesheet" href="{{ panel.stylesheet }}">{% endfor %}
+    <!-- Apply the saved theme and discreet mode before the page renders. -->
     <script nonce="{{ csp_nonce }}">
         (function () {
             try {
@@ -28,7 +29,7 @@
                 if (theme && theme !== 'dark') root.setAttribute('data-theme', theme);
                 var discreet = AlteraStorage.local.getItem('altera_discreet') === '1';
                 if (discreet) root.classList.add('discreet');
-                root.dataset.mood = discreet ? 'off' : (AlteraStorage.local.getItem('altera_mood') || 'off');
+                root.dataset.mood = 'off';
             } catch (e) { /* storage blocked: the defaults apply */ }
         })();
     </script>
@@ -145,7 +146,7 @@
                     </span>
                     <span class="stage-light" aria-hidden="true"></span>
                 </button>
-                <button type="button" class="mood-badge" id="moodBadge" hidden title="Adult mode level: click to change it"></button>
+                {% for panel in addon_panels %}{{ panel.badge }}{% endfor %}
                 <div class="portrait-meta">
                     <h3 id="portraitName"></h3>
                     <p class="portrait-line" id="portraitLine"></p>
@@ -538,7 +539,6 @@
                     <div class="accent-colors" id="accentColors">
                         <!-- Populated by JS -->
                     </div>
-                    <p class="setting-hint accent-mood-hint">Adult mode is on, so the page uses its level's colours. The accent colour returns when adult mode is off or discreet mode is on.</p>
                 </div>
 
                 <!-- Proactive Check-ins (Phase 4) -->
@@ -582,64 +582,15 @@
                 <a href="https://github.com/Fel101/Altera" target="_blank" rel="noreferrer">Altera</a> lets you talk with them. Each one also works on its own.</p>
             <p>Version {{ altera_version }}. Free software under the MIT licence, © 2026 Pete Hudson. It is built on other people's open work, such as Flask, ChromaDB, Whisper and Kokoro; their licences are listed in docs/README.md.</p>
             <p>Altera is not a person and not a therapist. If you are struggling, please talk to someone you trust or a local helpline.</p>
+            {% if addon_notice %}<p>{{ addon_notice }}</p>{% endif %}
             <div class="modal-actions">
                 <button type="button" class="primary" id="aboutClose" data-click="closeAbout">Close</button>
             </div>
-            <button type="button" class="about-pi" id="aboutPi" data-click="openVault" aria-label="π">π</button>
+            {% for panel in addon_panels %}{{ panel.trigger }}{% endfor %}
         </div>
     </div>
 
-    <!-- Adult mode (18+): off by default and out of sight. Reached only through About's π; turning it on needs the 18+
-         confirmation, and the parent PIN when one is set. -->
-    <div class="companion-overlay vault-overlay" id="vaultOverlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="vaultTitle">
-        <div class="companion-modal vault-modal">
-            <pre class="vault-screen" id="vaultScreen" aria-hidden="true" data-click="finishVaultIntro"></pre>
-            <div id="vaultBody">
-                <h3 id="vaultTitle" class="vault-title">Adult mode (18+)</h3>
-                <div id="adultSection">
-                    <div class="setting-label-row">
-                        <label for="adultToggle">Enable adult mode</label>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="adultToggle" data-change="onAdultToggle" data-pass="checked">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                    <label class="vault-pin" id="adultPinRow" hidden>Parent PIN<input id="adultPin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off"></label>
-                    <div id="adultOptions" style="display: none; margin-top: 12px;">
-                        <label class="adult-label" for="adultLevel">How far</label>
-                        <select id="adultLevel" data-change="onAdultLevel" data-pass="value"></select>
-                        <p class="setting-hint" id="adultLevelHint"></p>
-                        <div class="setting-label-row" style="margin-top: 10px;">
-                            <label for="privacyBlurToggle">Blur adult pictures until clicked</label>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="privacyBlurToggle" data-change="onPrivacyBlur" data-pass="checked">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                    </div>
-                    <p class="setting-hint" id="adultStatus">Loading…</p>
-                </div>
-                <div class="modal-actions">
-                    <button type="button" id="vaultLockAway" data-click="lockAdultAway" hidden>Turn off and lock away</button>
-                    <button type="button" class="primary" data-click="closeVault">Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Adult mode confirmation -->
-    <div class="companion-overlay" id="adultConfirmOverlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="adultConfirmTitle">
-        <div class="companion-modal">
-            <h3 id="adultConfirmTitle">Turn on adult mode?</h3>
-            <p>Adult mode allows romantic and sensual conversation and pictures, and, at the highest level, explicit ones. It is for adults only.</p>
-            <label class="check-row"><input type="checkbox" id="adultConfirmBox"> <span>I am 18 or older, and I want this.</span></label>
-            <p>Some things stay off at every level: anything involving minors or anyone childlike, anything involving real people, anything non-consensual. At Suggestive and above, a picture is only delivered after a vision model has checked that the person looks like an adult.</p>
-            <div class="modal-actions">
-                <button type="button" data-click="cancelAdultConfirm">Cancel</button>
-                <button type="button" class="primary" id="adultConfirmBtn" data-click="confirmAdult" disabled>Turn on</button>
-            </div>
-        </div>
-    </div>
+    {% for panel in addon_panels %}{{ panel.html }}{% endfor %}
 
     <!-- Avatar picker -->
     <div class="companion-overlay" id="avatarOverlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="avatarModalTitle">
@@ -648,16 +599,16 @@
                 <h3 id="avatarModalTitle">Companions and pictures</h3>
                 <button type="button" data-click="closeAvatarModal" class="close-btn" title="Close">×</button>
             </div>
-            <p>Every companion is a person you can talk to: one made in NPC Forge, or one you wrote here. Altera uses the portrait as the reference for every picture, so pictures keep the same face; a companion with no portrait yet shows an initial, and pictures need a portrait first. Pictures you approve in NPC Forge's studio are fetched automatically and sent instantly, without making anything new. Removing someone deletes their chat, notes, memories and pictures here (NPC Forge's copy is not touched).</p>
+            <p>Every companion is a person you can talk to: one made in NPC Forge, or one you wrote here. Altera uses the portrait as the reference for every picture, so pictures keep the same face; a companion with no portrait yet shows an initial, and pictures need a portrait first. Removing someone deletes their chat, notes, memories and pictures here (NPC Forge's copy is not touched).</p>
             <h4>People</h4>
             <div class="avatar-grid" id="avatarGrid"></div>
-            <div id="premadeSection" style="display: none;">
+            {% if addon_panels %}<div id="premadeSection" style="display: none;">
                 <h4><span id="premadeTitle">Ready-made pictures</span>
                     <button type="button" class="small" data-click="loadPremade">Refresh</button>
                     <button type="button" class="small" id="premadeAll" data-click="importAllPremade" style="display: none;">Import all</button></h4>
                 <p class="setting-hint" id="premadeHint"></p>
                 <div class="avatar-grid" id="premadeGrid"></div>
-            </div>
+            </div>{% endif %}
             <h4>In NPC Forge <button type="button" class="small" data-click="loadForge">Refresh</button></h4>
             <p class="setting-hint" id="forgeHint"></p>
             <div class="avatar-grid" id="forgeGrid"></div>
@@ -770,7 +721,7 @@
             <input id="sharedSceneFile" type="file" accept="image/png,image/jpeg" required>
             <label for="sharedSceneText">Imagined scene</label>
             <textarea id="sharedSceneText" maxlength="300" rows="3" required></textarea>
-            <label><input id="sharedSceneSelf" type="checkbox" required> This photo is of me, and I am at least 18.</label>
+            <label><input id="sharedSceneSelf" type="checkbox" required> This is an adult reference photo of me, and I agree to use it for this scene.</label>
             <label><input id="sharedSceneProviders" type="checkbox" required> I agree to send my photo to the services shown above.</label>
             <p id="sharedSceneStatus" role="status"></p>
             <div class="modal-actions"><button id="sharedSceneSubmit" type="submit">Create imagined picture</button>
@@ -813,6 +764,7 @@
     <script src="{{ url_for('static', filename='js/reply-settings.js') }}"></script>
     <script src="{{ url_for('static', filename='js/companion.js') }}"></script>
     <script src="{{ url_for('static', filename='js/about.js') }}"></script>
+    {% for panel in addon_panels if panel.script %}<script src="{{ panel.script }}"></script>{% endfor %}
     <script src="{{ url_for('static', filename='js/companions.js') }}"></script>
     <script src="{{ url_for('static', filename='js/shared-scene.js') }}"></script>
     <script src="{{ url_for('static', filename='js/room.js') }}"></script>

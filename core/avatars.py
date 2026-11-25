@@ -32,7 +32,6 @@ KINDS = ("pal", "character", "companion")
 DEFAULT_KIND = "companion"            # everyone imported before kinds existed came from NPC Forge as a companion
 
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{2,63}$")
-ITEM_ID_RE = re.compile(r"^s-[0-9a-f]{8,12}$")          # a picture in NPC Forge's studio
 
 # What a character's NPC Forge setting means for her world. A modern setting (or an unknown one) says nothing.
 SETTING_WORLDS = {
@@ -278,10 +277,15 @@ class AvatarStore:
         name = {"thumb": "thumb.png", "portrait": "portrait.png"}.get(kind)
         return d / name if d and name and (d / name).is_file() else None
 
-    # The studio keeps its work next to the character: <id>/adult/items.json, studio.json and img/<item>.png. Altera only reads it.
-    def _studio_dir(self, npc_id) -> Path | None:
-        d = self._forge_dir(npc_id)
-        return d / "adult" if d and (d / "adult").is_dir() else None
+    def _picture_source(self, npc_id):
+        from core import addons
+        source = addons.picture_source()
+        if source is None or not valid_id(npc_id):
+            return None, None, None
+        mode = self.forge_mode()
+        directory = self._forge_dir(npc_id) if mode == "legacy" else None
+        client = self.forge_client() if mode == "cards" else None
+        return source, directory, client
 
     def forge_premade(self, npc_id) -> list:
         """Ready-made pictures approved ('kept') in NPC Forge's studio: [{item_id, scene, label, level}]."""
@@ -290,41 +294,21 @@ class AvatarStore:
     def forge_premade_read(self, npc_id):
         """(the approved pictures, whether the studio's list could be read at all). A sync takes pictures away from her only when
         it could: NPC Forge may be writing the file at that moment, and that must not look like 'nothing is approved'."""
-        studio = self._studio_dir(npc_id)
-        data = _read_json(studio / "items.json") if studio else None
-        items = []
-        for it in (data.get("items", []) if isinstance(data, dict) else []):
-            if (isinstance(it, dict) and it.get("keep") and it.get("status") == "ready"
-                    and ITEM_ID_RE.match(str(it.get("id", ""))) and (studio / "img" / f"{it['id']}.png").is_file()):
-                items.append({"item_id": it["id"], "scene": it.get("scene") or "", "label": it.get("label") or "",
-                              "level": it.get("level") or "suggestive"})
-        return items, isinstance(data, dict)
+        source, directory, client = self._picture_source(npc_id)
+        return source.items(npc_id, directory, client) if directory or client else ([], False)
 
-    def forge_premade_file(self, npc_id, item_id) -> Path | None:
+    def forge_premade_file(self, npc_id, item_id):
         """The picture file of an approved studio item (an unapproved or failed one is not served or imported)."""
-        studio = self._studio_dir(npc_id)
-        if not studio or not ITEM_ID_RE.match(str(item_id or "")):
-            return None
-        if not any(item["item_id"] == item_id for item in self.forge_premade(npc_id)):
-            return None
-        return studio / "img" / f"{item_id}.png"
+        source, directory, client = self._picture_source(npc_id)
+        return source.file(npc_id, item_id, directory, client) if directory or client else None
 
     def forge_studio_body(self, npc_id) -> dict:
-        """What the studio wrote while perfecting the character: {"text": the body words used in every picture (bust size and
-        shape plus the free notes; only the notes for a character whose body options were never saved), "explicit": the areolas,
-        added at the explicit level only}. Both are '' if there is nothing."""
-        studio = self._studio_dir(npc_id)
-        data = _read_json(studio / "studio.json") if studio else None
-        data = data if isinstance(data, dict) else {}
-
-        def text(key):
-            value = data.get(key)
-            return value.strip() if isinstance(value, str) else ""
-        return {"text": text("body_text") or text("notes"), "explicit": text("body_text_explicit")}
+        source, directory, client = self._picture_source(npc_id)
+        return source.body(npc_id, directory, client) if directory or client else {}
 
     def forge_studio_notes(self, npc_id) -> str:
         """The body words written in the studio ('' if none)."""
-        return self.forge_studio_body(npc_id)["text"]
+        return self.forge_studio_body(npc_id).get("text", "")
 
     def list_forge(self) -> list:
         """The characters in NPC Forge's library, newest first, each marked eligible or not (with the reason)."""
@@ -446,7 +430,6 @@ class AvatarStore:
             return False
         npc = _read_json(d / "npc.json") or {}
         stamp = npc.get("updated") or npc.get("created")
-        studio_body = self.forge_studio_body(source["id"])
         old = record.get("card") or {}
         try:
             card = card_from_npc(npc, name=old.get("name"), age=old.get("age"))
@@ -457,9 +440,12 @@ class AvatarStore:
                 card[key] = old[key]
         if old.get("age_source") in ("rolled", "chosen", "locked"):
             card["age_source"] = old["age_source"]
-        if studio_body["text"]:
+        if safety.card_problem(card):
+            return False
+        studio_body = self.forge_studio_body(source["id"])
+        if studio_body.get("text"):
             card["body_notes"] = studio_body["text"]
-        if studio_body["explicit"]:
+        if studio_body.get("explicit"):
             card["body_notes_explicit"] = studio_body["explicit"]
         if card == old or safety.card_problem(card):
             if stamp and source.get("updated") != stamp and card == old:
@@ -496,10 +482,12 @@ class AvatarStore:
             raise AvatarError("That character was not found in NPC Forge's library.")
         npc = _read_json(d / "npc.json") or {}
         card = card_from_npc(npc, name=name, age=age)
+        if problem := safety.card_problem(card):
+            raise AvatarError(problem)
         studio_body = self.forge_studio_body(npc_id)          # written in NPC Forge's studio while perfecting the character
-        if studio_body["text"]:
+        if studio_body.get("text"):
             card["body_notes"] = studio_body["text"]
-        if studio_body["explicit"]:
+        if studio_body.get("explicit"):
             card["body_notes_explicit"] = studio_body["explicit"]
         problem = safety.card_problem(card)
         if problem:

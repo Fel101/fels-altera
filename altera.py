@@ -9,4 +9,4 @@ if __name__ == '__main__':
 else:
     from core.app import create_app
 
-    app = create_app()
+    app = create_app(load_addons=False)

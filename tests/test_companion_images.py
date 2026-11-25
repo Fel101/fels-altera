@@ -410,6 +410,7 @@ def test_list_forge_marks_eligibility(store, forge):
     assert {r["id"]: r for r in store.list_forge()}["ok-one-111111"]["imported"]
 
 
+@pytest.mark.requires_addon
 def test_forge_premade_lists_only_approved_ready_items_with_safe_ids(store, forge):
     make_forge(forge)
     assert store.forge_premade("mara-bell-47ab97") == []                     # no studio folder yet
@@ -425,6 +426,7 @@ def test_forge_premade_lists_only_approved_ready_items_with_safe_ids(store, forg
     assert {r["id"]: r for r in store.list_forge()}["mara-bell-47ab97"]["premade"] == 2
 
 
+@pytest.mark.requires_addon
 def test_studio_notes_travel_with_the_import_and_reach_the_prompt(store, forge):
     make_forge(forge)
     make_studio(forge, notes="athletic build, defined waist")
@@ -436,6 +438,7 @@ def test_studio_notes_travel_with_the_import_and_reach_the_prompt(store, forge):
     assert "Body:" not in photos.build_prompt({**card, "body_notes": ""}, "on a beach", "romantic")["positive"]
 
 
+@pytest.mark.requires_addon
 def test_the_studios_body_options_travel_and_the_areolas_only_reach_explicit_prompts(store, forge):
     make_forge(forge)
     make_studio(forge, notes="defined waist", body={"body_text": "a full, rounded bust, teardrop-shaped; defined waist",
@@ -444,7 +447,8 @@ def test_the_studios_body_options_travel_and_the_areolas_only_reach_explicit_pro
     card = store.get("mara-bell-47ab97")["card"]
     assert card["body_notes"] == "a full, rounded bust, teardrop-shaped; defined waist"
     assert card["body_notes_explicit"] == "medium-sized rose areolas"
-    for level in ("off", "romantic", "suggestive"):
+    assert "Body:" not in photos.build_prompt(card, "on a beach", "off")["positive"]
+    for level in ("romantic", "suggestive"):
         prompt = photos.build_prompt(card, "on a beach", level)["positive"]
         assert "Body: a full, rounded bust, teardrop-shaped; defined waist." in prompt and "areolas" not in prompt, level
     explicit = photos.build_prompt(card, "on a beach", "explicit")["positive"]
@@ -458,6 +462,7 @@ def test_the_studios_body_options_travel_and_the_areolas_only_reach_explicit_pro
         store.import_from_forge("mara-bell-47ab97")
 
 
+@pytest.mark.requires_addon
 def test_studio_notes_are_held_to_the_same_rules(store, forge):
     make_forge(forge)
     make_studio(forge, notes="a petite schoolgirl figure")
@@ -503,6 +508,7 @@ def world(tmp_path, forge, store):
     return types.SimpleNamespace(svc=svc, backend=backend, checker=checker, store=store, tmp=tmp_path)
 
 
+@pytest.mark.requires_addon
 def test_prompt_names_the_adult_and_the_youth_negative_is_always_present():
     card = {"age": 34, "gender": "female", "look": "long brown hair", "style": "photoreal"}
     p = photos.build_prompt(card, "on a balcony at sunset", "romantic", refs=2)
@@ -519,6 +525,7 @@ def test_prompt_names_the_adult_and_the_youth_negative_is_always_present():
     assert "the same person from the reference image " in one["positive"]
 
 
+@pytest.mark.requires_addon
 def test_suggestive_and_explicit_pictures_ask_for_the_whole_body(world):
     card = {"age": 34, "gender": "female", "look": "long brown hair", "style": "photoreal"}
     for level in ("off", "romantic"):
@@ -584,6 +591,7 @@ def test_hard_rules_block_before_anything_is_generated(world):
     assert world.backend.calls == [] and world.svc.list() == []
 
 
+@pytest.mark.requires_addon
 def test_level_gates_the_words_in_a_request(world):
     with pytest.raises(photos.PhotoBlocked, match='does not make pictures of "bikini"'):   # off: no hint
         world.svc.create("in a bikini", level="off")
@@ -612,6 +620,7 @@ def test_age_check_rejection_discards_the_picture(world):
     assert world.svc.image_path(rec["id"]) is None and not list(world.svc.root.glob("*.png"))
 
 
+@pytest.mark.requires_addon
 def test_age_check_unavailable_blocks_suggestive_and_up_but_not_below(world):
     world.checker.result = {"ok": None, "apparent_age": None, "model": "fake", "error": "no vision model"}
     assert world.svc.create("in a cafe", level="off")["age_checked"] is False
@@ -639,6 +648,7 @@ def test_needs_an_avatar(tmp_path, store):
         svc.create("in a cafe")
 
 
+@pytest.mark.requires_addon
 def test_reroll_keeps_the_scene_but_respects_the_current_level(world):
     first = world.svc.create("in lingerie", level="suggestive")
     again = world.svc.reroll(first["id"], level="suggestive")
@@ -662,6 +672,7 @@ def test_list_delete_and_ids(world):
         assert world.svc.get(bad) is None and world.svc.image_path(bad) is None and world.svc.delete(bad) is False
 
 
+@pytest.mark.requires_addon
 def test_a_blocked_picture_remembers_which_level_it_needed(world):
     rec = world.svc.create("wearing a sexy dress", level="off", record_blocked=True)
     assert rec["status"] == "blocked" and rec["required_level"] == "suggestive"
@@ -694,6 +705,7 @@ def test_importing_the_same_premade_picture_again_replaces_it_and_keeps_its_id(w
     assert world.svc.premade_keys("mara-bell-47ab97") == {"mara-bell-47ab97:s-0123abcd": first["id"]}
 
 
+@pytest.mark.requires_addon
 def test_premade_pictures_go_through_the_same_gates(world):
     with pytest.raises(photos.PhotoBlocked, match="never allowed"):
         premade(world, scene="a 16 year old at school")
@@ -714,6 +726,7 @@ def test_premade_pictures_go_through_the_same_gates(world):
     assert len(world.svc.list_premade("mara-bell-47ab97")) == 1                   # the failures above stored nothing
 
 
+@pytest.mark.requires_addon
 def test_premade_pictures_respect_the_current_level(world):
     everyday = premade(world)
     robe = premade(world, scene="wearing a silk robe by a bedroom window", level="suggestive", key="mara-bell-47ab97:s-1123abcd",
@@ -728,6 +741,7 @@ def test_premade_pictures_respect_the_current_level(world):
     assert world.svc.get_premade(generated["id"], "mara-bell-47ab97", "explicit") is None      # not a ready-made one
 
 
+@pytest.mark.requires_addon
 def test_picking_a_premade_picture_for_a_request(world):
     cafe = premade(world)
     robe = premade(world, scene="wearing a silk robe by a bedroom window", level="suggestive", key="k:robe", label="Silk robe")

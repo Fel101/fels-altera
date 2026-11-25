@@ -398,7 +398,7 @@
             try {
                 const current = await call('/api/kids');
                 state.kids = {enabled: current?.enabled === true, enabled_at: current?.enabled_at || null,
-                    pin_set: current?.pin_set === true};
+                    pin_set: current?.pin_set === true, blocked: current?.blocked_reason || ''};
             } catch (_) {
                 state.kids = {enabled: false, enabled_at: null, pin_set: false};        // unknown counts as locked
             }
@@ -431,18 +431,19 @@
             await kidsState();
             const unlocked = state.kids?.enabled === true;
             const pinSet = state.kids?.pin_set === true;
+            const blocked = !unlocked && state.kids?.blocked;
             $('kidsUnderstood').checked = false;
-            $('kidsUnderstoodRow').hidden = unlocked;
-            $('kidsSetupFields').hidden = unlocked && pinSet;
+            $('kidsUnderstoodRow').hidden = unlocked || !!blocked;
+            $('kidsSetupFields').hidden = (unlocked && pinSet) || !!blocked;
             $('kidsChangeFields').hidden = !unlocked || !pinSet;
-            $('kidsEnable').hidden = unlocked && pinSet;
+            $('kidsEnable').hidden = (unlocked && pinSet) || !!blocked;
             $('kidsEnable').textContent = unlocked ? 'Set a PIN' : 'Enable kids mode';
             $('kidsLock').hidden = !unlocked || !pinSet;
             $('kidsChangePin').hidden = !unlocked || !pinSet;
-            $('kidsStatus').textContent = unlocked
+            $('kidsStatus').textContent = blocked || (unlocked
                 ? (pinSet ? 'Kids mode is set up on this Altera.'
                     : 'Kids mode is on, but no PIN is set yet. Set one so a grown-up can leave kids mode.')
-                : '';
+                : '');
             for (const id of ['kidsPin', 'kidsPinRepeat', 'kidsCurrentPin', 'kidsNewPin', 'kidsNewPinRepeat']) {
                 if ($(id)) $(id).value = '';
             }
@@ -451,7 +452,9 @@
             if (state.kidsFromSettings) closeDialog('palSettingsDialog');
             showDialog('kidsDialog');
             $('kidsDialog').scrollTop = 0;                     // "a guardrail, not a certification" is read first, not skipped
-            if (unlocked && pinSet) $('kidsCurrentPin').focus?.(); else $('kidsPin').focus?.();
+            if (blocked) $('kidsCancel').focus?.();
+            else if (unlocked && pinSet) $('kidsCurrentPin').focus?.();
+            else $('kidsPin').focus?.();
         }
 
         function closeKids() {

@@ -208,59 +208,7 @@
 /* About, and the π in its corner: small and quiet, for whoever goes looking (about.js) */
 .about-modal { position: relative; }
 .about-modal a { color: var(--accent); text-underline-offset: 3px; }
-.about-pi {
-    position: absolute;
-    right: 10px;
-    bottom: 8px;
-    padding: 2px 6px;
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    opacity: 0.35;
-    font: 0.85rem/1 Georgia, 'Times New Roman', serif;
-    cursor: pointer;
-}
-.about-pi:hover, .about-pi:focus-visible { opacity: 1; }
-.about-pi[hidden], body.kids-view .about-pi { display: none; }
 
-/* The box the π opens: a green-on-black terminal for adult mode's settings */
-.vault-modal {
-    --vault-green: #39ff7a;
-    max-width: 500px;
-    background: #050805;
-    border-color: #1d4d2a;
-    color: #c8f7d4;
-    font-family: 'Cascadia Mono', Consolas, 'Courier New', monospace;
-    box-shadow: 0 0 0 1px #0c2814, 0 24px 64px rgba(0, 0, 0, 0.7), 0 0 40px rgba(57, 255, 122, 0.08);
-}
-.vault-screen {
-    margin: 0 0 14px;
-    min-height: 7.5em;
-    color: var(--vault-green);
-    font: inherit;
-    font-size: 0.8rem;
-    line-height: 1.45;
-    white-space: pre-wrap;
-    text-shadow: 0 0 6px rgba(57, 255, 122, 0.45);
-    cursor: default;
-}
-.vault-screen::after { content: '█'; animation: vault-blink 1s steps(1) infinite; }
-@keyframes vault-blink { 50% { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .vault-screen::after { animation: none; } }
-.vault-modal #vaultBody[hidden] { display: none; }
-.vault-modal .vault-title { color: var(--vault-green); font-size: 0.95rem; letter-spacing: 0.04em; }
-.vault-modal .setting-hint, .vault-modal p, .vault-modal label { color: #9fd9ae; }
-.vault-modal select, .vault-modal input[type="password"] {
-    background: #0b140d;
-    color: #c8f7d4;
-    border: 1px solid #1d4d2a;
-    font-family: inherit;
-}
-.vault-modal .modal-actions button { background: #0b140d; border-color: #1d4d2a; color: #c8f7d4; font-family: inherit; }
-.vault-modal .modal-actions button.primary { background: #123d1f; border-color: var(--vault-green); color: var(--vault-green); }
-.vault-pin { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; font-size: 0.85rem; }
-.vault-pin[hidden] { display: none; }
-.vault-pin input { padding: 8px 10px; border-radius: 6px; max-width: 12em; }
 .companion-modal h3 { font-size: 1.05rem; margin-bottom: 10px; }
 .companion-modal h4 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin: 18px 0 8px; display: flex; align-items: center; gap: 10px; }
 .companion-modal p { font-size: 0.85rem; line-height: 1.5; color: var(--text-secondary); margin-bottom: 10px; }
@@ -474,22 +422,7 @@
 }
 
 /* ...and her picture itself is graded warmer, with the room darker around her */
-:root:not([data-theme="light"])[data-mood="suggestive"] .stage-face { filter: saturate(1.1) sepia(0.2) contrast(1.06) brightness(0.92); }
-:root:not([data-theme="light"])[data-mood="explicit"] .stage-face { filter: saturate(1.15) sepia(0.3) contrast(1.12) brightness(0.86); }
-:root:not([data-theme="light"])[data-mood="suggestive"] .portrait-frame::after {
-    background:
-        linear-gradient(to top, var(--bg-primary) 0%, color-mix(in srgb, var(--bg-primary) 70%, transparent) 28%, transparent 58%),
-        radial-gradient(ellipse 80% 70% at 50% 34%, transparent 40%, rgba(10, 3, 4, 0.55) 100%);
-}
-:root:not([data-theme="light"])[data-mood="explicit"] .portrait-frame::after {
-    background:
-        linear-gradient(to top, var(--bg-primary) 0%, color-mix(in srgb, var(--bg-primary) 75%, transparent) 30%, transparent 60%),
-        radial-gradient(ellipse 72% 62% at 50% 34%, transparent 32%, rgba(8, 2, 3, 0.72) 100%);
-}
 
-[data-mood="romantic"] .stage-light { opacity: 0.8; }
-[data-mood="suggestive"] .stage-light,
-[data-mood="explicit"] .stage-light { opacity: 1; animation: candle 5s ease-in-out infinite; }
 
 @keyframes candle {
     0%, 100% { opacity: 0.85; }
@@ -570,8 +503,6 @@
     text-shadow: 0 2px 20px rgba(0, 0, 0, 0.45);
 }
 
-[data-mood="suggestive"] .portrait-meta h3,
-[data-mood="explicit"] .portrait-meta h3 { font-style: italic; font-weight: 500; }
 
 .portrait-line { color: var(--text-secondary); font-size: 0.88rem; margin: 0 0 12px; }
 .trait-chips { margin-bottom: 4px; }

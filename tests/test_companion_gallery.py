@@ -2,6 +2,8 @@
 new one is made. The picture backend and the age check are fakes; nothing here reaches ComfyUI or a model."""
 import json
 
+import pytest
+
 
 from core.photos import _keys, match_score
 from test_companion_api import active_avatar, drain, engine, system_prompt, tmp_store, world  # noqa: F401
@@ -39,6 +41,7 @@ def test_scenes_are_compared_by_their_meaningful_words():
     assert match_score({"cafe", "latte", "sunset", "beach"}, {"cafe"}) == 0.25 and match_score(set(), {"cafe"}) == 0.0
 
 
+@pytest.mark.requires_addon
 def test_only_a_picture_that_really_shows_it_counts_as_a_match(world):
     active = active_avatar(world)
     studio(world, CAFE, PARK)
@@ -51,6 +54,7 @@ def test_only_a_picture_that_really_shows_it_counts_as_a_match(world):
     assert world.photos.find_match(MARA, "off", "") is None and world.photos.find_match(MARA, "off", "the a of") is None
 
 
+@pytest.mark.requires_addon
 def test_a_picture_that_was_just_sent_is_only_used_when_nothing_else_fits(world):
     active = active_avatar(world)
     twin = item(5, "in a cafe with a flat white, reading a book", "Cafe reading")
@@ -64,6 +68,7 @@ def test_a_picture_that_was_just_sent_is_only_used_when_nothing_else_fits(world)
     assert both["id"] in ids.values()                                                          # better repeated than made again
 
 
+@pytest.mark.requires_addon
 def test_a_picture_above_the_current_level_is_never_matched(world):
     active = active_avatar(world)
     studio(world, BEACH, ROBE)
@@ -74,6 +79,7 @@ def test_a_picture_above_the_current_level_is_never_matched(world):
     assert world.photos.find_match(MARA, "suggestive", "a silk robe by a bedroom window")["label"] == "Silk robe"
 
 
+@pytest.mark.requires_addon
 def test_what_she_made_for_the_person_earlier_can_be_sent_again_but_never_a_failure(world):
     active = active_avatar(world)
     studio(world, CAFE)
@@ -89,6 +95,7 @@ def test_what_she_made_for_the_person_earlier_can_be_sent_again_but_never_a_fail
     assert world.photos.find_match(MARA, "off", "in lingerie on the bed") is None
 
 
+@pytest.mark.requires_addon
 def test_the_pictures_that_fit_the_moment_are_listed_first(world):
     active = active_avatar(world)
     studio(world, CAFE, PARK, item(6, "on a hiking trail in the mountains", "Hike"), item(7, "cooking in a sunlit kitchen", "Kitchen"))
@@ -101,6 +108,7 @@ def test_the_pictures_that_fit_the_moment_are_listed_first(world):
 
 # ---------------------------------------------------------------- keeping the gallery in step with NPC Forge
 
+@pytest.mark.requires_addon
 def test_the_studios_approved_pictures_become_hers_and_only_those(world):
     active = active_avatar(world)
     studio(world, CAFE, ROBE, item(8, "on a rainy street with an umbrella", "Rain", keep=False),
@@ -113,6 +121,7 @@ def test_the_studios_approved_pictures_become_hers_and_only_those(world):
     assert world.checker.calls == 2                                                            # and no second age check
 
 
+@pytest.mark.requires_addon
 def test_a_redone_picture_replaces_the_old_copy_and_keeps_its_id(world):
     active = active_avatar(world)
     d = studio(world, CAFE)
@@ -126,6 +135,7 @@ def test_a_redone_picture_replaces_the_old_copy_and_keeps_its_id(world):
     assert world.photos.image_path(before["id"]).read_bytes() == PNG + b"a brand new take, a little longer"
 
 
+@pytest.mark.requires_addon
 def test_a_picture_taken_out_of_the_studio_leaves_her_gallery(world):
     active = active_avatar(world)
     d = studio(world, CAFE, PARK)
@@ -137,6 +147,7 @@ def test_a_picture_taken_out_of_the_studio_leaves_her_gallery(world):
     assert world.photos.sync_premade(active["id"])["removed"] == 1 and gallery_ids(world) == set()
 
 
+@pytest.mark.requires_addon
 def test_a_studio_list_that_cannot_be_read_takes_nothing_away(world):
     active = active_avatar(world)
     d = studio(world, CAFE, PARK)
@@ -148,6 +159,7 @@ def test_a_studio_list_that_cannot_be_read_takes_nothing_away(world):
     assert world.photos.sync_premade(active["id"])["removed"] == 1 and gallery_ids(world) == {PARK["scene"]}
 
 
+@pytest.mark.requires_addon
 def test_a_missing_forge_folder_takes_nothing_away(world):
     active = active_avatar(world)
     studio(world, CAFE)
@@ -158,6 +170,7 @@ def test_a_missing_forge_folder_takes_nothing_away(world):
     assert gallery_ids(world) == {CAFE["scene"]}
 
 
+@pytest.mark.requires_addon
 def test_a_refused_picture_is_not_shown_to_the_age_check_again_until_it_changes(world):
     active = active_avatar(world)
     d = studio(world, CAFE)
@@ -173,6 +186,7 @@ def test_a_refused_picture_is_not_shown_to_the_age_check_again_until_it_changes(
     assert world.photos.sync_premade(active["id"])["imported"] == 1 and gallery_ids(world) == {CAFE["scene"]}
 
 
+@pytest.mark.requires_addon
 def test_a_picture_the_age_check_could_not_look_at_waits_and_is_not_remembered_as_refused(world):
     active = active_avatar(world)
     studio(world, CAFE, PARK, ROBE)                                                            # two everyday pictures and a suggestive one
@@ -188,6 +202,7 @@ def test_a_picture_the_age_check_could_not_look_at_waits_and_is_not_remembered_a
     assert gallery_ids(world) == {CAFE["scene"], PARK["scene"], ROBE["scene"]}
 
 
+@pytest.mark.requires_addon
 def test_the_background_sync_runs_once_at_a_time_and_reports_what_it_did(world):
     active_avatar(world)
     studio(world, CAFE)
@@ -201,6 +216,7 @@ def test_the_background_sync_runs_once_at_a_time_and_reports_what_it_did(world):
 
 # ---------------------------------------------------------------- the chat uses what she has before making anything
 
+@pytest.mark.requires_addon
 def test_a_picture_she_already_has_is_sent_at_once_and_nothing_is_made(engine, world):
     active = active_avatar(world)
     studio(world, CAFE, PARK)
@@ -211,6 +227,7 @@ def test_a_picture_she_already_has_is_sent_at_once_and_nothing_is_made(engine, w
     assert world.backend.calls == []
 
 
+@pytest.mark.requires_addon
 def test_pictures_made_in_the_studio_after_she_was_opened_are_fetched_when_you_talk_to_her(engine, world):
     active_avatar(world)
     sid = world.store.create_session("t")
@@ -222,6 +239,7 @@ def test_pictures_made_in_the_studio_after_she_was_opened_are_fetched_when_you_t
     assert found["label"] == "Cafe" and found["premade"] is True and world.backend.calls == []
 
 
+@pytest.mark.requires_addon
 def test_only_when_nothing_fits_is_a_new_picture_made(engine, world):
     active = active_avatar(world)
     studio(world, CAFE)
@@ -234,6 +252,7 @@ def test_only_when_nothing_fits_is_a_new_picture_made(engine, world):
     assert again[0]["id"] == found[0]["id"] and again[0]["reused"] is True and len(world.backend.calls) == 1
 
 
+@pytest.mark.requires_addon
 def test_a_plain_request_gets_a_studio_picture_that_was_not_sent_lately(engine, world):
     active = active_avatar(world)
     studio(world, CAFE, PARK)
@@ -247,6 +266,7 @@ def test_a_plain_request_gets_a_studio_picture_that_was_not_sent_lately(engine, 
     assert third["premade"] is True and world.backend.calls == []
 
 
+@pytest.mark.requires_addon
 def test_what_the_person_asks_for_is_matched_against_the_gallery_too(engine, world):
     active = active_avatar(world)
     studio(world, CAFE, PARK)
@@ -258,6 +278,7 @@ def test_what_the_person_asks_for_is_matched_against_the_gallery_too(engine, wor
     assert made["scene"] == "on the roof" and len(world.backend.calls) == 1
 
 
+@pytest.mark.requires_addon
 def test_she_is_told_about_the_pictures_that_fit_and_how_many_there_are(engine, world):
     active = active_avatar(world)
     many = [item(0x100 + i, f"pose number {i} in a quiet room", f"Room {i}") for i in range(14)]

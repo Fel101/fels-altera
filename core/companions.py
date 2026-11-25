@@ -100,8 +100,10 @@ def open_companion(avatar_id, *, activate=True) -> dict:
     session_id = ds.ensure_avatar_session(avatar_id, record.get("name") or avatar_id)
     if activate:
         ds.set_last_active_session(session_id)
-    try:                                                   # the studio's approved pictures become hers, in the background
-        services.photos.sync_premade_async(avatar_id)
+    try:
+        from core import addons
+        if addons.picture_source():
+            services.photos.sync_premade_async(avatar_id)
     except Exception:
         LOGGER.exception("Could not start the picture sync")
     try:

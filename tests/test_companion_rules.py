@@ -85,6 +85,7 @@ def test_default_state_is_off(store):
     assert state["enabled"] is False and state["effective_level"] == "off" and state["privacy_blur"] is True
 
 
+@pytest.mark.requires_addon
 def test_enabling_needs_the_18_confirmation(store):
     state, error = adult.update_state({"enabled": True}, store)
     assert error and "18" in error and state["enabled"] is False
@@ -93,6 +94,7 @@ def test_enabling_needs_the_18_confirmation(store):
     assert state["confirmed_at"]
 
 
+@pytest.mark.requires_addon
 def test_confirmation_is_remembered_and_disabling_always_works(store):
     adult.update_state({"enabled": True, "confirm_adult": True}, store)
     state, _ = adult.update_state({"enabled": False}, store)
@@ -101,6 +103,7 @@ def test_confirmation_is_remembered_and_disabling_always_works(store):
     assert error is None and state["enabled"] is True
 
 
+@pytest.mark.requires_addon
 def test_level_is_validated_and_off_is_not_a_level(store):
     _, error = adult.update_state({"level": "off"}, store)
     assert error
@@ -110,11 +113,13 @@ def test_level_is_validated_and_off_is_not_a_level(store):
     assert error is None and state["level"] == "explicit" and state["effective_level"] == "off"   # not enabled yet
 
 
+@pytest.mark.requires_addon
 def test_confirmation_cannot_be_forged_through_the_store(store):
     store.set_key(adult.STATE_KEY, {"enabled": True, "level": "explicit"})       # no confirmed_at
     assert adult.get_state(store)["enabled"] is False
 
 
+@pytest.mark.requires_addon
 def test_delete_all_conversations_forgets_the_opt_in(store):
     adult.update_state({"enabled": True, "confirm_adult": True, "level": "explicit"}, store)
     store.reset_all_user_data()                                     # what "Delete All Conversations" runs
@@ -124,17 +129,20 @@ def test_delete_all_conversations_forgets_the_opt_in(store):
     assert error and "18" in error                                  # and it asks for the confirmation again
 
 
+@pytest.mark.requires_addon
 def test_privacy_blur_toggle(store):
     state, _ = adult.update_state({"privacy_blur": False}, store)
     assert state["privacy_blur"] is False
 
 
+@pytest.mark.requires_addon
 def test_chat_instruction_carries_hard_rules_above_off():
     assert "Keep everything non-sexual" in adult.chat_instruction("off") and "never sexualise" not in adult.chat_instruction("off")
-    for level in adult.LEVELS[1:]:
+    for level in adult.levels()[1:]:
         assert "never sexualise anyone under 18" in adult.chat_instruction(level)
 
 
+@pytest.mark.requires_addon
 def test_tier_problem_reports_the_highest_level_needed():
     assert adult.tier_problem("in a bikini by the pool", "off")["required"] == "romantic"
     assert adult.tier_problem("in a bikini by the pool", "romantic") is None
@@ -148,13 +156,14 @@ def test_tier_problem_reports_the_highest_level_needed():
     assert adult.tier_problem("a bramble hedge", "off") is None                  # 'bra' inside a word is not a match
 
 
+@pytest.mark.requires_addon
 def test_default_scenes_have_no_pronouns_and_the_explicit_ones_are_their_own():
     assert adult.default_scenes("off")
     explicit = adult.default_scenes("explicit")
     assert len(explicit) >= 10 and explicit != adult.default_scenes("suggestive")     # the explicit list is filled in
     for scene in explicit:
         assert adult.tier_problem(scene, "suggestive")["required"] == "explicit", scene   # each one really is an explicit scene
-    for level in adult.LEVELS:
+    for level in adult.levels():
         for scene in adult.default_scenes(level):
             assert not any(w in scene.lower().split() for w in ("her", "his", "she", "he")), scene
             assert safety.hard_problem(scene) is None
@@ -162,16 +171,19 @@ def test_default_scenes_have_no_pronouns_and_the_explicit_ones_are_their_own():
     assert adult.pick_scene("off", random.Random(1)) in adult.default_scenes("off")
 
 
+@pytest.mark.requires_addon
 def test_an_empty_scene_list_falls_back_to_the_level_below(monkeypatch):
     scenes = {"off": ["a"], "romantic": ["b"], "suggestive": ["c"], "explicit": []}
-    monkeypatch.setattr(adult, "tiers", lambda: {"photo": {"scenes": scenes}})
+    for level in ("romantic", "suggestive", "explicit"):
+        monkeypatch.setitem(adult.options(level), "scenes", scenes[level])
     assert adult.default_scenes("explicit") == ["c"] and adult.default_scenes("romantic") == ["b"]
-    scenes["suggestive"] = []
+    scenes["suggestive"].clear()
     assert adult.default_scenes("explicit") == ["b"]
 
 
+@pytest.mark.requires_addon
 def test_describe_levels_lists_all_four():
-    assert [level["id"] for level in adult.describe_levels()] == list(adult.LEVELS)
+    assert [level["id"] for level in adult.describe_levels()] == list(adult.levels())
 
 
 # ---------------------------------------------------------------- photo tags

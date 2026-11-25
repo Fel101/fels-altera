@@ -181,6 +181,10 @@ class ChatEngine:
         owner = companions.avatar_for_session(session_id)
         from core import kids
         kids_on = kids.is_on(owner)
+        try:
+            addon_level = not kids_on and adult.effective_level() != "off"
+        except Exception:
+            addon_level = False
         kids_reply = None
         regenerating = bool(turn and turn.regenerate)
         if regenerating:
@@ -191,8 +195,8 @@ class ChatEngine:
             user_text = ""
         else:
             # 0. Hard rule: a sexual message that points at a minor never reaches the model, is not saved and is not remembered.
-            if safety.blocks_message(user_text):
-                LOGGER.warning("Blocked a message by the minor-safety tripwire")
+            if safety.blocks_message(user_text) or (addon_level and safety.hard_problem(user_text)):
+                LOGGER.warning("Blocked a message by the content safety rules")
                 if stream:
                     return iter([REFUSAL, None])
                 return (REFUSAL, []) if return_photos else REFUSAL
@@ -247,6 +251,9 @@ class ChatEngine:
 
         # Kids mode: no web search, and the model's whole reply is checked before the child sees it
         guard = kids.check_reply if kids_on and fixed_reply is None else None
+        if addon_level:
+            def guard(text):
+                return REFUSAL if safety.hard_problem(text) else None
         client = self._reply_client(context.avatar_id)
         if stream:
             return self._call_llm_stream(llm_messages, session_id, user_text, after_reply, fixed_reply=fixed_reply,
@@ -254,7 +261,11 @@ class ChatEngine:
         reply = fixed_reply if fixed_reply is not None else self._call_llm(llm_messages, session_id, allow_tools=not kids_on,
                                                                            client=client)
         if guard:
-            reply = guard(reply) or reply
+            replacement = guard(reply)
+            if replacement:
+                self._persist_reply(session_id, replacement)
+                after_reply()
+                return (replacement, []) if return_photos else replacement
         text, tags = photo_tags.extract(reply)
         photos = self._start_photos(tags, user_text, session_id)
         self._persist_reply(session_id, photo_tags.tidy(text) + "".join(f"\n[[photo:{p['id']}]]" for p in photos))
@@ -584,10 +595,11 @@ class ChatEngine:
                         if CURRENT_TURN.get():
                             CURRENT_TURN.get().check_cancelled()
                 # The suite GPU lock is released before asking Forge to make a picture.
+                instead = None
                 if guard is not None:
-                    instead = guard(visible)
+                    instead = guard(full_response)
                     if instead:
-                        LOGGER.info("Kids mode replaced a reply: session_id=%r", session_id)
+                        LOGGER.info("Content checks replaced a reply: session_id=%r", session_id)
                         visible = instead
                     if visible:
                         yield visible
@@ -598,7 +610,7 @@ class ChatEngine:
                 if CURRENT_TURN.get():
                     CURRENT_TURN.get().check_cancelled()
                 # A tag (or a plain request for a picture) starts a picture job; the saved message carries a marker per picture
-                photos = self._start_photos(tags.tags, user_text, session_id)
+                photos = [] if instead else self._start_photos(tags.tags, user_text, session_id)
                 saved = photo_tags.tidy(visible) + "".join(f"\n[[photo:{p['id']}]]" for p in photos)
 
                 # Save with DataStore (creates its own connection — no Flask context needed)

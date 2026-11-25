@@ -9,14 +9,19 @@ nothing on its own, so what must always be true is checked here instead of being
   * nothing is non-consensual.
 
 The word lists are heuristics. They catch the obvious phrasings, not every phrasing. The second layer is the image age
-check (core/age_check.py), which looks at the finished picture. The editable tier tables in content/adult_tiers.yaml
-cannot loosen anything in this file.
+check (core/age_check.py), which looks at the finished picture. Add-ons cannot loosen either layer.
 """
 import re
 
 MIN_AVATAR_AGE = 18        # the legal floor. Not configurable: there is no setting that lowers it
 MIN_APPARENT_AGE = 18      # what the image age check must estimate before a picture is delivered. It is an ESTIMATE by a vision
                            # model and can be several years off either way: a second layer behind the text rules, not a guarantee
+
+ADDON_RULES = (
+    "Rules that never change, whatever the user asks: you are an adult; never sexualise anyone under 18 or anyone who is "
+    "described or implied to be young, childlike or at school; never involve a real person or anyone the user knows; "
+    "nothing non-consensual, coerced or violent. Decline in your own voice and change direction."
+)
 
 # Always added to an image's negative prompt.
 YOUTH_NEGATIVE = "child, childlike, minor, underage, teenager, teen, youthful, baby face, schoolgirl, school uniform"
@@ -53,6 +58,16 @@ _SEXUAL_RE = re.compile(
     r"\b(?:sex|sexy|sexual\w*|nude|naked|topless|bottomless|erotic\w*|horny|porn\w*|nsfw|fuck\w*|cock|dick|pussy|tits?|"
     r"boobs?|breasts?|nipples?|cum|cumming|orgasm\w*|blowjob|masturbat\w*|lingerie|undress\w*|strip(?:ping|tease)?|"
     r"fetish|kinky|naughty|seduc\w*|aroused|arousal)\b", re.I)
+_CORE_PICTURE_RE = re.compile(
+    r"\b(?:swimsuits?|swimwear|bikinis?|bathing\s+suits?|trunks|shirtless|underwear|panties|bras?|bralettes?|thongs?|"
+    r"negligees?|babydolls?|corsets?|stockings?|garters?|see-through|sheer|cleavage|bathtub|in\s+the\s+shower|"
+    r"towel\s+only|wet\s+t-shirt|sultry|areolas?|genitals?|vagina|penis|erect|intercourse|undressed|no\s+clothes|"
+    r"nothing\s+on|without\s+clothes|spread\s+legs)\b", re.I)
+
+
+def core_picture_term(text):
+    match = _CORE_PICTURE_RE.search(text or "") or _SEXUAL_RE.search(text or "")
+    return match.group(0) if match else None
 
 # Real, identifiable people: celebrity and likeness phrasing, and "looks like <Name>".
 _REAL_PERSON_RE = re.compile(

@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 
 from flask import Blueprint, Response, current_app, jsonify, request, send_file
 
-from core import adult, avatars, companion, companions, forge, kids, living, photos
+from core import addons, adult, avatars, companion, companions, forge, kids, living, photos
 from core.constants import api_error
 from core.profile import living_portrait_enabled, set_living_portrait
 from core.datastore import get_datastore
@@ -46,51 +46,6 @@ def _image(path):
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
-
-
-def _adult_payload(state=None) -> dict:
-    return {**(state or adult.get_state()), "levels": adult.describe_levels(), "pin_needed": _parent_pin_set()}
-
-
-def _parent_pin_set() -> bool:
-    """Is a parent PIN set? Turning adult mode on then needs it too. A PIN that cannot be read counts as set (fails closed)."""
-    from core import lock
-    try:
-        return lock.has_pin()
-    except Exception:
-        return True
-
-
-# ============================================================
-# Adult mode
-# ============================================================
-
-@bp.route("/api/adult", methods=["GET"])
-def get_adult_mode():
-    return jsonify(_adult_payload())
-
-
-@bp.route("/api/adult", methods=["POST"])
-def set_adult_mode():
-    if _cross_site():
-        return _forbidden()
-    data = request.get_json(silent=True) or {}
-    changes = {k: data[k] for k in ("enabled", "level", "confirm_adult", "privacy_blur") if k in data}
-    if changes.get("enabled") is True and not adult.get_state()["enabled"] and _parent_pin_set():
-        # A household with a parent PIN: an unlocked tablet left with a child must not be able to turn this on.
-        from core import lock
-        pin = data.get("pin") if isinstance(data.get("pin"), str) else ""
-        if not pin:                                       # not a wrong try: nothing was typed
-            return jsonify({"error": "Enter the parent PIN to turn this on.", "code": "pin_needed",
-                            **_adult_payload()}), 403
-        try:
-            lock.verify_pin(pin)
-        except lock.LockError as refused:
-            return jsonify({"error": str(refused), "code": refused.code, **_adult_payload()}), refused.status
-    state, error = adult.update_state(changes)
-    if error:
-        return jsonify({"error": error, **_adult_payload(state)}), 400
-    return jsonify(_adult_payload(state))
 
 
 # ============================================================
@@ -291,34 +246,43 @@ def avatar_living_frame(avatar_id, frame):
 
 @bp.route("/api/avatars/<avatar_id>/premade", methods=["GET"])
 def list_premade(avatar_id):
+    if not addons.picture_source():
+        return api_error("not_found", 404)
     s = companion.get_services()
     if not s.avatars.get(avatar_id):
         return jsonify({"error": "That avatar was not found."}), 404
-    npc_id = s.avatars.get(avatar_id)["source"]["id"]
+    npc_id = avatars.forge_id(s.avatars.get(avatar_id))
     have = s.photos.premade_keys(avatar_id)
     hidden = not adult.get_state()["enabled"]             # while adult mode is off, its pictures stay out of sight
-    items = [{**item, "imported": f"{npc_id}:{item['item_id']}" in have, "photo_id": have.get(f"{npc_id}:{item['item_id']}")}
-             for item in s.avatars.forge_premade(npc_id) if not hidden or item.get("level") == "off"]
+    items = []
+    for item in s.avatars.forge_premade(npc_id):
+        if not adult.visible(item.get("level")) or (hidden and item.get("level") != "off"):
+            continue
+        photo = have.get(f"{npc_id}:{item['item_id']}")
+        items.append({**item, "imported": bool(photo), "photo_id": photo,
+                      "image_url": f"/api/photos/{photo}/image" if photo else None})
     return jsonify({"items": items, "photos": s.photos.list_premade(avatar_id)})
 
 
 @bp.route("/api/avatars/<avatar_id>/premade/import", methods=["POST"])
 def import_premade(avatar_id):
-    """Import one approved picture. It goes through the same gates as a new one, including the age check."""
+    """Import one approved picture through the core checks."""
+    if not addons.picture_source():
+        return api_error("not_found", 404)
     if _cross_site():
         return _forbidden()
     s = companion.get_services()
     record = s.avatars.get(avatar_id)
     if not record:
         return jsonify({"error": "That avatar was not found."}), 404
-    npc_id = record["source"]["id"]
+    npc_id = avatars.forge_id(record)
     item_id = (request.get_json(silent=True) or {}).get("item_id")
     item = next((i for i in s.avatars.forge_premade(npc_id) if i["item_id"] == item_id), None)
     path = s.avatars.forge_premade_file(npc_id, item_id) if item else None
     if not item or not path:
         return jsonify({"error": "That picture is not among the ones approved in NPC Forge."}), 404
     try:
-        photo = s.photos.import_premade(avatar_id, path.read_bytes(), item["scene"], item["level"],
+        photo = s.photos.import_premade(avatar_id, path if isinstance(path, bytes) else path.read_bytes(), item["scene"], item["level"],
                                         key=f"{npc_id}:{item_id}", label=item["label"])
     except photos.PhotoBlocked as e:
         return jsonify({"error": str(e), "blocked": True, "required_level": e.required_level}), 422
@@ -328,14 +292,6 @@ def import_premade(avatar_id):
         LOGGER.exception("Premade import failed")
         return api_error("internal_error", 500)
     return jsonify(photo)
-
-
-@bp.route("/api/forge/<npc_id>/adult/<item_id>", methods=["GET"])
-def forge_premade_image(npc_id, item_id):
-    path = companion.get_services().avatars.forge_premade_file(npc_id, item_id)
-    if not path:
-        return api_error("not_found", 404)
-    return _image(path)
 
 
 # ============================================================

@@ -27,7 +27,7 @@ import time
 import uuid
 from pathlib import Path
 
-from core import adult, kids, safety
+from core import addons, adult, kids, safety
 from core.imagegen import FULL_LENGTH, QUALITY, ImageGenError
 
 LOGGER = logging.getLogger(__name__)
@@ -152,16 +152,14 @@ def _who(card: dict) -> str:
     return {"female": "woman", "male": "man"}.get((card.get("gender") or "").lower(), "person")
 
 
-FULL_LENGTH_LEVELS = ("suggestive", "explicit")
 FRAME_FULL = ("Frame it as a full-length photograph taken from a few metres back, so the whole body is visible from head to knees "
               "or further, with plenty of space around the figure.")
 _CLOSE_SHOT = re.compile(r"\b(close-up|closeup|headshot|portrait)\b", re.I)
 
 
 def frame_of(scene: str, level: str):
-    """'full' when a picture should show the whole body. The avatar's portrait is a head-and-shoulders crop and the edit copies
-    its framing: measured, without this sentence 'nude' pictures ended at the collarbone and a pose seen from behind was ignored."""
-    return "full" if level in FULL_LENGTH_LEVELS and not _CLOSE_SHOT.search(scene or "") else None
+    """Request the registered framing when the scene does not ask for a close shot."""
+    return "full" if adult.options(level)["full_length"] and not _CLOSE_SHOT.search(scene or "") else None
 
 
 def build_prompt(card: dict, scene: str, level: str, refs: int = 1) -> dict:
@@ -177,12 +175,9 @@ def build_prompt(card: dict, scene: str, level: str, refs: int = 1) -> dict:
         reference = (f"the reference images (the first shows the {who}'s face and hair, the second shows the whole body)")
     else:
         reference = "the reference image"
-    # Explicit scenes: "everyday clothes for anything it does not mention" kept the reference outfit on in a mirror selfie (a
-    # cardigan, a bodysuit), so there nothing is worn unless the scene says so (measured: the selfie came out nude, and the
-    # bikini bottoms and the open shirt that scenes name stayed).
-    dress = (f"Dress the {who} only as the description says; whatever it does not say the {who} wears, the {who} is not wearing."
-             if level == "explicit" else
-             f"Dress the {who} only as the description says, and in ordinary everyday clothes for anything it does not mention.")
+    style_rule = adult.options(level)["framing"]
+    dress = style_rule.replace("{who}", who) if style_rule else (
+        f"Dress the {who} only as the description says, and in ordinary everyday clothes for anything it does not mention.")
     parts = [
         f"Show the same {who} from {reference} {scene}.",
         FRAME_FULL if frame_of(scene, level) else "",
@@ -193,8 +188,8 @@ def build_prompt(card: dict, scene: str, level: str, refs: int = 1) -> dict:
         style["look"],
         f"Keep the exact same {style['edit_name']} art style.",
     ]
-    # written in NPC Forge's studio while perfecting the avatar; the areolas only where they can show
-    body = "; ".join(x for x in (card.get("body_notes"), card.get("body_notes_explicit") if level == "explicit" else "") if x)
+    source = addons.picture_source() if level != "off" else None
+    body = source.picture_details(card, level) if source else ""
     if body:
         parts.append(f"Body: {body}.")
     mood = adult.photo_mood(level)
@@ -313,6 +308,8 @@ class PhotoService:
         result = {k: rec.get(k) for k in ("id", "avatar_id", "session_id", "status", "reason", "scene", "level", "created",
                                            "finished", "age_checked", "source", "superseded_by", "required_level", "premade",
                                            "label")}
+        if result["required_level"] and not adult.visible(result["required_level"]):
+            result.update(required_level=None, reason="The picture did not pass the content rules.")
         # Altera only creates or imports generated companion images. This public
         # label also covers legacy records without rewriting their metadata.
         result['provenance'] = 'imagined_scene'
@@ -330,7 +327,7 @@ class PhotoService:
             raise PhotoBlocked(KIDS_PICTURES_OFF)
         if not self.avatars.image_path(avatar_id, "portrait"):
             raise PhotoError("This avatar has no portrait image.")
-        level = level if level in adult.LEVELS else "off"
+        level = level if adult.visible(level) else "off"
         scene = normalize_scene(scene) or adult.pick_scene(level, self._rng)
 
         reason, required = safety.hard_problem(scene), None
@@ -456,21 +453,21 @@ class PhotoService:
 
     def get(self, pid) -> dict | None:
         rec = self._read(pid)
-        return self.public(rec) if rec else None
+        return self.public(rec) if rec and adult.visible(rec.get("level")) else None
 
     def scene_for(self, pid) -> str | None:
         rec = self._read(pid)
-        return rec.get("scene") if rec else None
+        return rec.get("scene") if rec and adult.visible(rec.get("level")) else None
 
     def image_path(self, pid) -> Path | None:
         rec = self._read(pid)
-        if rec and rec.get("status") == "ready" and self._png(pid).is_file():
+        if rec and rec.get("status") == "ready" and adult.visible(rec.get("level")) and self._png(pid).is_file():
             return self._png(pid)
         return None
 
     def list(self, avatar_id=None, limit=60) -> list:
         """Newest first. Pictures that were redone are left out: their replacement is listed instead."""
-        recs = [r for r in self._all() if not r.get("superseded_by")]
+        recs = [r for r in self._all() if not r.get("superseded_by") and adult.visible(r.get("level"))]
         if avatar_id:
             recs = [r for r in recs if r.get("avatar_id") == avatar_id]
         recs.sort(key=lambda r: r.get("created", ""), reverse=True)
@@ -521,7 +518,7 @@ class PhotoService:
         """Same scene, new seed. The level can only be the one passed in (the current adult-mode level). The old picture
         points at its replacement, so a chat message that shows the old one shows the new one."""
         rec = self._read(pid)
-        if not rec:
+        if not rec or not adult.visible(rec.get("level")):
             raise PhotoError("That picture was not found.")
         if rec.get('source') == 'shared-scene':
             raise PhotoError('Choose your reference again to create another shared picture.')
@@ -539,9 +536,14 @@ class PhotoService:
         check (its description may not need a higher level than the one it is filed under) and the age check (Suggestive and
         above only with a passing check). Importing the same `key` again replaces the earlier copy, keeping its id.
         `check` is an age-check result to use instead of asking again: a sync passes one once the vision model has not answered."""
-        if not self.avatars.get(avatar_id):
+        avatar = self.avatars.get(avatar_id)
+        if not avatar:
             raise PhotoError("That avatar was not found.")
-        if level not in adult.LEVELS:
+        if kids.is_on(avatar):
+            raise PhotoBlocked(KIDS_PICTURES_OFF)
+        if problem := safety.card_problem(avatar.get("card") or {}):
+            raise PhotoBlocked(problem)
+        if not adult.visible(level):
             raise PhotoError(f"Unknown level: {level!r}.")
         scene = normalize_scene(scene)
         if not scene:
@@ -558,7 +560,7 @@ class PhotoService:
         if check.get("ok") is False:
             raise PhotoBlocked(f"The age check rejected this picture (it reads as about {check.get('apparent_age')}, "
                                f"under {safety.MIN_APPARENT_AGE}).")
-        if check.get("ok") is None and adult.level_at_least(level, "suggestive"):
+        if check.get("ok") is not True and adult.needs_age_check(level):
             raise PhotoUnchecked("Pictures at this level need the age check, and it could not run: "
                                  f"{check.get('error') or 'no answer'}", check.get("error"))
 
@@ -583,17 +585,17 @@ class PhotoService:
         return {r["premade_key"]: r["id"] for r in self._all()
                 if r.get("premade") and r.get("avatar_id") == avatar_id and r.get("premade_key")}
 
-    def list_premade(self, avatar_id, max_level="explicit") -> list:
+    def list_premade(self, avatar_id, max_level=None) -> list:
         """Ready-made pictures of this avatar that the current level allows, newest first."""
         recs = [r for r in self._all() if r.get("premade") and r.get("status") == "ready" and r.get("avatar_id") == avatar_id
-                and adult.level_index(r.get("level")) <= adult.level_index(max_level)]
+                and adult.visible(r.get("level"), max_level)]
         recs.sort(key=lambda r: r.get("created", ""), reverse=True)
         return [self.public(r) for r in recs]
 
     def get_premade(self, pid, avatar_id, max_level) -> dict | None:
         rec = self._read(pid)
         if (rec and rec.get("premade") and rec.get("status") == "ready" and rec.get("avatar_id") == avatar_id
-                and adult.level_index(rec.get("level")) <= adult.level_index(max_level) and self._png(pid).is_file()):
+                and adult.visible(rec.get("level"), max_level) and self._png(pid).is_file()):
             return self.public(rec)
         return None
 
@@ -610,6 +612,9 @@ class PhotoService:
 
     @staticmethod
     def _file_sig(path) -> str:
+        if isinstance(path, bytes):
+            from hashlib import sha256
+            return sha256(path).hexdigest()
         try:
             stat = Path(path).stat()
             return f"{stat.st_mtime_ns}-{stat.st_size}"
@@ -623,10 +628,10 @@ class PhotoService:
         look at (no vision model answered) is 'waiting': it is tried again on the next sync. Returns the counts."""
         record = self.avatars.get(avatar_id)
         result = {"imported": 0, "updated": 0, "removed": 0, "refused": 0, "waiting": 0, "problems": []}
-        if not record or not self.avatars.forge_available():
+        if not record or not addons.picture_source():
             return result
         npc_id = (record.get("source") or {}).get("id")      # a pal has no NPC Forge character, so no studio pictures
-        if not npc_id or not self.avatars._forge_dir(npc_id):
+        if not npc_id:
             return result
         items, listed = self.avatars.forge_premade_read(npc_id)
         kept_keys = {f"{npc_id}:{i['item_id']}" for i in items}
@@ -649,7 +654,8 @@ class PhotoService:
                 result["refused"] += 1
                 continue
             try:
-                done = self.import_premade(avatar_id, path.read_bytes(), item["scene"], item["level"], key=key, label=item["label"],
+                png = path if isinstance(path, bytes) else path.read_bytes()
+                done = self.import_premade(avatar_id, png, item["scene"], item["level"], key=key, label=item["label"],
                                            sig=sig, check=no_answer)
                 refused.pop(key, None)
                 result["updated" if existing else "imported"] += 1
@@ -677,6 +683,8 @@ class PhotoService:
 
     def sync_premade_async(self, avatar_id) -> bool:
         """Start sync_premade in the background (one at a time per avatar). False if it is already running. In sync mode: inline."""
+        if not addons.picture_source():
+            return False
         with self._sync_lock:
             if avatar_id in self._syncing:
                 return False
@@ -712,12 +720,11 @@ class PhotoService:
     def gallery(self, avatar_id, level) -> list:
         """Every picture of hers that can be sent again at this level: the studio's approved ones, then the ones she made for
         the person earlier (never one that was blocked, failed or redone). Newest first within each group."""
-        ceiling = adult.level_index(level)
         made, ready = [], []
         for rec in self._all():
             if (rec.get("avatar_id") != avatar_id or rec.get("status") != "ready" or rec.get("superseded_by")
                     or rec.get('source') == 'shared-scene'
-                    or adult.level_index(rec.get("level")) > ceiling or not self._png(rec["id"]).is_file()):
+                    or not adult.visible(rec.get("level"), level) or not self._png(rec["id"]).is_file()):
                 continue
             (ready if rec.get("premade") else made).append(rec)
         for group in (ready, made):
@@ -870,16 +877,41 @@ class PhotoService:
             avatar = self.avatars.get(rec["avatar_id"])
             if kids.is_on(avatar):
                 return self._finish(rec, 'blocked', KIDS_PICTURES_OFF)
+            if not adult.visible(rec["level"]):
+                return self._finish(rec, "blocked", "The saved picture settings are unavailable.")
+            if safety.hard_problem(rec["scene"]) or adult.tier_problem(rec["scene"], rec["level"]):
+                return self._finish(rec, "blocked", "The requested scene does not pass the picture rules.")
             refs = self.avatars.refs(rec["avatar_id"], self.use_body)
             if not refs or not avatar:
                 raise PhotoError("The avatar's reference images are missing. Import it again from NPC Forge.")
+            if safety.card_problem(avatar["card"]):
+                return self._finish(rec, "blocked", "The character does not pass the picture rules.")
             prompt = build_prompt(avatar["card"], rec["scene"], rec["level"], refs=len(refs))
+            if rec["level"] != "off" and safety.hard_problem(prompt["positive"]):
+                return self._finish(rec, "blocked", "The add-on's picture prompt does not pass the picture rules.")
             width, height, steps = (FULL_LENGTH if frame_of(rec["scene"], rec["level"]) else QUALITY)[self.quality]
             if self.unload_llm:
                 from core.llm import unload_models
                 unload_models()
-            png = self.backend_for(rec["level"]).render(refs, prompt["positive"], prompt["negative"], rec["seed"],
-                                                        (width, height), steps)
+            render = self.backend_for(rec["level"]).render
+            hook = addons.picture_engine(rec["level"])
+            if hook is None:
+                png = render(refs, prompt["positive"], prompt["negative"], rec["seed"], (width, height), steps)
+            else:
+                def checked_render(positive, negative):
+                    if not all(isinstance(text, str) and len(text) <= 24000 for text in (positive, negative)):
+                        raise PhotoError("The add-on did not supply a usable picture prompt.")
+                    if safety.hard_problem(positive) or adult.tier_problem(positive, rec["level"]):
+                        raise PhotoBlocked("The add-on's picture prompt does not pass the picture rules.")
+                    return render(refs, positive, f"{negative}, {safety.YOUTH_NEGATIVE}", rec["seed"], (width, height), steps)
+                png = hook(prompt=prompt.copy(), render=checked_render)
+                from core.charcard import CardError, png_size
+                try:
+                    if not isinstance(png, bytes):
+                        raise CardError("Expected PNG bytes.")
+                    png_size(png)
+                except CardError:
+                    raise PhotoError("The add-on did not return a readable PNG picture.") from None
         except (ImageGenError, PhotoError) as e:
             return self._finish(rec, "failed", str(e))
         except Exception:
@@ -890,7 +922,7 @@ class PhotoService:
         if check.get("ok") is False:
             return self._finish(rec, "blocked", f"The age check rejected this picture (it reads as about "
                                                 f"{check.get('apparent_age')}, under {safety.MIN_APPARENT_AGE}). It was discarded.")
-        if check.get("ok") is None and adult.level_at_least(rec["level"], "suggestive"):
+        if check.get("ok") is not True and adult.needs_age_check(rec["level"]):
             return self._finish(rec, "blocked", "Pictures at this level need the age check, and it could not run: "
                                                 f"{check.get('error') or 'no answer'} It was discarded.")
         self._png(pid).write_bytes(png)

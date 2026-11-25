@@ -101,7 +101,7 @@ Explicit `POST /api/voice-notes/<note_id>/transcribe` uses `{dataset_epoch}` for
   (the local voice not installed, not running, still loading, or without that voice). `voice` speaks a sample in one of
   the voices `/api/pals/options` lists (400 for any other). `POST /api/voice/stt`: multipart `file` or raw audio bytes → `text`/`language`.
 - `POST /api/llm/switch`: `{provider, model?}`. Provider configuration uses `PUT /api/llm/config` with `provider` and allowed connection fields. Credentials are saved in ignored local configuration. Test connection lists models; it does not generate text. `POST /api/setup/check` is the one place that does: the first-run page sends a single fixed `Reply with the single word OK.` prompt, clearly labelled as a test, and nothing a person typed is included.
-- Companion opening/notes, gallery synchronization and NPC Forge creation are described in [Companions](COMPANIONS.md). Pictures and adult-level payloads are described in [the image guide](AVATARS_AND_ADULT_MODE.md).
+- Companion opening/notes, gallery synchronization and NPC Forge creation are described in [Companions](COMPANIONS.md). Pictures and their content checks are described in [the image guide](AVATARS.md).
 - Workspace routes require tools enabled. File writes use `{path, content}` with a `workspace/` path and UTF-8 text; reads use query `path`, and URL fetch uses `{url}`. File read/write and fetch payloads are capped at 512 KiB. Fetch connects directly to validated public addresses, rechecks redirects and ignores ambient `HTTP_PROXY`/`HTTPS_PROXY`; private/shared/Tailscale destinations and secret files are refused.
 - `POST /api/clear-data` requires `{confirm: "delete-all"}` and idle writers, including unfinished speech. It clears conversations/derived knowledge, pictures, current and legacy speech cache, profile and server queue, and atomically changes the dataset identifier with the SQLite reset. Failures return 500 with `code: "clear_incomplete"` and can be partial; retry before using Altera. Imported avatars, backups/exports, logs and workspace files remain. Global legacy memory clearing requires `{confirm: "yes"}`. These confirmations are accidental-deletion guards, not authentication.
 
@@ -158,8 +158,6 @@ Source: [`companion.py`](../core/routes/companion.py).
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/adult` | Read adult-mode state. |
-| `POST` | `/api/adult` | Update adult-mode opt-in and level. Turning it on needs `pin` when a parent PIN is set (`pin_needed` in the state). |
 | `GET` | `/api/avatars` | Imported avatars. |
 | `GET` | `/api/avatars/forge` | NPC Forge library candidates. |
 | `GET` | `/api/forge/<npc_id>/thumb` | Source character thumbnail. |
@@ -174,9 +172,8 @@ Source: [`companion.py`](../core/routes/companion.py).
 | `GET` | `/api/avatars/<avatar_id>/living` | Living portrait frame metadata. |
 | `POST` | `/api/avatars/<avatar_id>/living/sync` | Synchronize living portrait frames. |
 | `GET` | `/api/avatars/<avatar_id>/living/<frame>` | Private living portrait frame. |
-| `GET` | `/api/avatars/<avatar_id>/premade` | Approved studio picture candidates. |
-| `POST` | `/api/avatars/<avatar_id>/premade/import` | Import one approved picture. |
-| `GET` | `/api/forge/<npc_id>/adult/<item_id>` | Private kept studio picture. |
+| `GET` | `/api/avatars/<avatar_id>/premade` | List picture candidates from an installed source. Only previously checked and imported pictures have image URLs. |
+| `POST` | `/api/avatars/<avatar_id>/premade/import` | Import one candidate through the core picture checks. |
 | `POST` | `/api/photos` | The camera button: ask for a picture directly. |
 | `POST` | `/api/shared-scenes/context` | Review the current conversation's vision and image recipients without sending a photo. Returns 409 when no configured workflow accepts both reference inputs. |
 | `POST` | `/api/shared-scenes` | Submit a confirmed, bounded user reference and everyday imagined scene to the reviewed recipients. |
@@ -191,7 +188,7 @@ Photo metadata returned by creation, lookup, listing and reuse includes `provena
 
 The camera and both shared-scene endpoints return `422` with `blocked: true` for a pal in kids mode. An earlier recipient review does not override the current setting.
 
-The shared-scene context body contains `session_id`, `avatar_id` and `dataset_epoch`; it returns vision endpoint/model, image endpoint and an opaque recipient fingerprint. Submit those scope fields plus `request_id` (`shared_` and 32 lowercase hex digits), `scene`, base64 `reference_png`, `provider_fingerprint`, and true `self_reference`, `adult_confirmation` and `provider_confirmation`. The fingerprint must still match before a provider is contacted; accepted work retains the reviewed targets. A matching retry attaches the same conversation marker and does not regenerate. A removed or edited marker cannot be recreated by retry. Pending work must finish before its image or session can be deleted. The original reference is not retained by Altera, but configured providers may retain the submitted copy. See [the image guide](AVATARS_AND_ADULT_MODE.md) for bounds and limits.
+The shared-scene context body contains `session_id`, `avatar_id` and `dataset_epoch`; it returns vision endpoint/model, image endpoint and an opaque recipient fingerprint. Submit those scope fields plus `request_id` (`shared_` and 32 lowercase hex digits), `scene`, base64 `reference_png`, `provider_fingerprint`, and true `self_reference`, `adult_confirmation` and `provider_confirmation`. The fingerprint must still match before a provider is contacted; accepted work retains the reviewed targets. A matching retry attaches the same conversation marker and does not regenerate. A removed or edited marker cannot be recreated by retry. Pending work must finish before its image or session can be deleted. The original reference is not retained by Altera, but configured providers may retain the submitted copy. See [the image guide](AVATARS.md) for bounds and limits.
 
 
 ### Companions and NPC Forge
@@ -213,7 +210,7 @@ Source: [`companions.py`](../core/routes/companions.py).
 | `POST` | `/api/pals` | `{name, vibe, voice?, kids?}` makes a pal (writes `data/avatars/<id>/pal.yaml` and its record) and opens it; 201 with the opened summary. Memory, notes, story and presence start off. 400 for a missing/long name, unknown vibe or a voice not offered; 409 for `kids: true` while kids mode is locked. |
 | `GET` | `/api/pals/<avatar_id>` | A pal's settings: `name`, `vibe`, `vibe_label`, `voice`, `features` (`memory`, `notes`, `story`, `presence`), `kids`, and who it is: `about`, `traits`, `speech_style` (`tone`, `formality`, `humor`, `emojis`), `interests`, `quirks`. 404 for anyone who is not a pal. |
 | `PUT` | `/api/pals/<avatar_id>` | `{name?, voice?, persona?, features?, kids?, pin?}` changes a pal and returns its settings. `persona` holds any of `about` (up to 400 characters), `traits` (up to 8), `interests` (up to 8), `quirks` (up to 6), each a list of short phrases, and `speech_style` (`tone`, `formality`, `humor` up to 120 characters, `emojis` true or false; what is not sent stays). Too long or too many is 400 with what to fix, as is text that breaks the card rules or, for a pal in kids mode, the kids-mode topics. Other fields are 400. Moving `kids` either way needs the parent PIN in `pin` (403 without it, or when it is wrong); moving it while kids mode is locked is 409, and so is `presence: true` for a pal in kids mode. |
-| `GET` | `/api/kids` | Kids mode for this Altera: `enabled`, `enabled_at`, `pin_set` (never the PIN or its hash), and `pals` (the names of pals in kids mode). See [Kids mode](KIDS_MODE.md). |
+| `GET` | `/api/kids` | Kids mode for this Altera: `enabled`, `enabled_at`, `pin_set`, and `pals`. When an add-on is installed, `blocked_reason` explains why Kids mode setup is unavailable. See [Kids mode](KIDS_MODE.md). |
 | `POST` | `/api/kids` | `{enabled: true, understood: true, pin}` unlocks kids mode and sets the parent PIN (400 without `understood: true` or a 4–8 digit `pin`). `{enabled: false, pin}` locks it again (409 while a pal is in kids mode). Once a PIN exists both need it (403 when it is wrong). Returns the same as `GET`. |
 | `POST` | `/api/characters/import` | Multipart `file` accepts CHARX, PNG and JSON character cards. Saves the original and local character, then returns 201 with the opened summary, `card_id` and any `card_voice` offer. Returns 400 for a damaged or refused card, or 413 for an oversized upload. See [Characters](CHARACTERS.md). |
 | `GET` | `/api/characters/inbox` | Lists waiting suite handoffs as `cards` with opaque IDs, sender labels and size problems. |
@@ -541,3 +538,9 @@ The scheduler catches up only the newest unexpired occurrence. From the newest 6
 A successful run atomically saves a visible report, up to two derived episode candidates and up to two source-tracked addenda in a separate SQLite current-notebook layer. It updates the companion's derived current notes automatically; the existing `about_you.md`/`our_story.md` bytes and their user edits remain separate. The prompt labels this layer as derived, preserves uncertainty and excludes stale sources. Repeated source proposals retain user edits and dismissals. A report's compatibility field `notebook_proposals` resolves the current linked derived addenda, including subsequent edits/dismissals; it is not an immutable copy of the provider's original text or an unapplied rewrite of the manual notebook.
 
 `current_notebook` contains `about_you`, `our_story`, `entries` and `derived: true`. Entries include `id`, `job_id`, frozen scope, `note`, `revision`, `text`, `uncertainty`, extraction `confidence`, `state`, `user_edited`, source ID/hash/range/status objects and timestamps. Reads validate the newest 40 current addenda and cap each note's prompt text at 4,000 characters; older records remain stored. Reports expose `id`, `job_id`, `state`, `summary`, `created_at`, `sources`, `episode_ids` and `notebook_proposals`. Job states are `pending`, `running`, `published`, `failed`, `stale`, `expired`; job responses omit private snapshots/process identities. Restores pause scheduling and invalidate generated layers; explicitly review retained episode curation or enable a fresh reflection run against eligible originals. No reactivation bypasses Forget, owner, epoch, hash or recall-floor checks.
+
+## Local add-ons
+
+| Method | Path | What it does |
+| --- | --- | --- |
+| `GET`, `POST`, `PUT`, `DELETE` | `/addons/<name>/<path:resource>` | Dispatch a route registered by an installed add-on at startup. Requests use the regular Altera access and write guards. Unregistered resources return 404. |

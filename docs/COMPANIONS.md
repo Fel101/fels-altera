@@ -122,27 +122,11 @@ as possible. A failed update changes nothing and is retried after three more mes
 
 New notebook updates use original user messages as fresh evidence. Assistant guesses, generated check-ins and earlier reflection are not independent sources; older notebook text and user edits remain derived material with aggregate provenance limits. Optional [reflection and Our story](OUR_STORY.md) add a separate source-tracked notebook layer and curated episodes. Reflection starts off per companion, preserves manual notebook files, and participates in correction, Forget and restore review.
 
-## Pictures: what she already has comes first
+## Saved pictures and reuse
 
-The pictures you approved ("kept") in NPC Forge's studio are fetched into her gallery **automatically**, in the background: when
-you open her, on every turn you talk to her, and when this page comes back to the front (so pictures you keep in the studio while
-chatting are there a moment later). Each goes through the same gates as any picture, the age check included; one that was refused
-is not shown to the age check again until its file changes. One the age check could not look at (no vision model answered, for
-example LM Studio was off) is not refused: it shows as "N waiting for the age check" under her picture and is tried again on the next
-pass; Off and Romantic pictures can remain unchecked; Suggestive and Explicit pictures require a passing check. Redone pictures replace the old copy; ones you un-keep or delete in the studio leave her
-gallery (only when the studio's list could be read: a half-written file takes nothing away). She then uses what exists before
-making anything:
-
-1. She is told which pictures fit the moment (the ones that match your last message first, then a handful at random) and how many
-   she has, and to prefer them.
-2. When she describes a picture in her `[[photo: ...]]` tag, or you ask for a scene, a picture she already has that shows it
-   (a studio picture, or one she made for you earlier) is sent **at once**; the match needs at least half of the request's key words
-   (and at least two of them when it has two or more). A picture sent in the last 30 messages is only reused when nothing else fits.
-3. "Send me a selfie" with no scene picks a studio picture that was not sent lately.
-4. Only when nothing fits is a **new** picture made, as before (ComfyUI, about 30 s).
-
-Pictures never go above the current adult-mode level, and blocked, failed and redone ones are never reused. A reused picture is
-captioned "From her collection".
+Altera can reuse an everyday picture from the companion's gallery when it fits the scene you asked for. It prefers a
+match that hasn't appeared in the last 30 messages. Finished images in the shared-reference workflow stay with the
+conversation and are excluded from automatic reuse. See [Avatars and pictures](AVATARS.md).
 
 ## Source changes, correction and forgetting
 
@@ -195,7 +179,6 @@ time).
 | `GET` / `PUT /api/companions/<id>/notes` | read / correct her notes (`{about_you?, our_story?}`) |
 | `POST /api/companions/<id>/notes/update` | write up the conversation now (background) |
 | `GET /api/companions/<id>/status` | `{notes: {busy, updated_at, words, waiting, ...}, pictures: {running, last}, gallery}` |
-| `POST /api/companions/<id>/pictures/sync` | fetch the studio's approved pictures now (`last` in the status: `imported, updated, removed, refused, waiting, problems`) |
 | `GET /api/forge/status` | NPC Forge: online, Models available, ComfyUI, options for the Meet window |
 | `POST /api/forge/start` | start NPC Forge if nothing listens on its port |
 | `POST /api/companions/make` | `{origin?, hair_color?, age_group?}` -> `{npc_id, job_id}` |
@@ -208,7 +191,6 @@ time).
 data/avatars/<id>/avatar.json  portrait.png  body.png
                    companion.json          first_met, self_view
                    notes/about_you.md  our_story.md  state.json  history/
-data/photos/sync-<id>.json                 what the studio sync did and which pictures it refused
 data/companions.json                       the move from the old chats happened (and what it did)
 data/conversations.before-companions.db    the database as it was before that
 ```

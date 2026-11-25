@@ -1,5 +1,5 @@
 /**
- * Altera — Avatars, pictures and adult mode (front end).
+ * Altera — Avatars and pictures.
  *
  * Avatars are characters made in NPC Forge and imported here. Pictures arrive under her messages as photo cards: a card
  * starts as a placeholder, polls the server while the picture is being made, and ends as the picture, or as a notice that says
@@ -7,7 +7,7 @@
  */
 'use strict';
 
-const Companion = { avatars: [], active: null, photosReady: false, forgeAvailable: false, adult: null, selection: 0 };
+const Companion = { avatars: [], active: null, photosReady: false, forgeAvailable: false, selection: 0 };
 window.companionPortraitUrl = null;
 const PHOTO_ID = /^p-[0-9a-f]{10}$/;
 const revealedPhotos = new Set();
@@ -256,6 +256,7 @@ async function loadPremade() {
     const grid = document.getElementById('premadeGrid');
     const active = Companion.active;
     const context = companionContext();
+    if (!grid || !section) return;
     grid.replaceChildren();
     if (!active) { section.style.display = 'none'; return; }
     let data;
@@ -277,16 +278,16 @@ async function loadPremade() {
     all.disabled = false;
     all.textContent = `Import all (${waiting.length})`;
 
-    const blur = !Companion.adult || Companion.adult.privacy_blur;
+    const controls = window.AlteraContentControls;
     for (const item of data.items) {
-        const img = h('img', { src: `/api/forge/${active.id}/adult/${item.item_id}`, alt: '', loading: 'lazy' });
-        const thumb = h('div', { class: 'premade-thumb' + (blur && isSensitive(item.level) ? ' blurred' : '') }, img);
+        const img = h('img', { src: item.image_url || undefined, alt: '', loading: 'lazy' });
+        const thumb = h('div', { class: 'premade-thumb' + (controls?.blur(item.level) ? ' blurred' : '') }, img);
         thumb.addEventListener('click', companionTracked(() => thumb.classList.remove('blurred')));
         const button = h('button', { class: 'primary', text: item.imported ? 'Imported' : 'Import', disabled: item.imported,
             onclick: ev => importPremadeItem(active.id, item, ev.currentTarget, true) });
         grid.append(h('div', { class: 'avatar-card' + (item.imported ? ' active' : '') }, thumb,
             h('strong', { text: item.label || item.scene.slice(0, 40) }),
-            adultShown() ? h('div', { class: 'meta', text: levelLabel(item.level) }) : null,
+            controls?.enabled() ? h('div', { class: 'meta', text: controls.label(item.level) }) : null,
             h('div', { class: 'card-actions' }, button)));
     }
     grid.dataset.pending = JSON.stringify(waiting);
@@ -385,109 +386,6 @@ async function deleteAvatar(avatar) {
     }
 }
 
-// ============================================================
-// Adult mode
-// ============================================================
-
-async function refreshAdult() {
-    const selection = Companion.selection;
-    try {
-        const state = await cApi('/api/adult');
-        if (selection !== Companion.selection) return;
-        Companion.adult = state;
-    } catch (err) {
-        if (!companionOwner.active) return;
-        console.warn('Could not load adult mode:', err);
-        return;
-    }
-    renderAdult();
-}
-
-function renderAdult() {
-    if (!companionOwner.active) return;
-    const s = Companion.adult;
-    if (!s) return;
-    document.getElementById('adultToggle').checked = s.enabled;
-    document.getElementById('adultOptions').style.display = s.enabled ? 'block' : 'none';
-    document.getElementById('privacyBlurToggle').checked = s.privacy_blur;
-
-    const select = document.getElementById('adultLevel');
-    if (!select.options.length) {
-        for (const lv of s.levels.filter(l => l.id !== 'off')) select.append(h('option', { value: lv.id, text: lv.label }));
-    }
-    select.value = s.level;
-    const info = s.levels.find(l => l.id === s.level);
-    document.getElementById('adultLevelHint').textContent = info ? info.summary : '';
-    const status = document.getElementById('adultStatus');
-    status.classList.remove('error');
-    status.textContent = s.enabled
-        ? `On. Level: ${info ? info.label : s.level}. Confirmed ${s.confirmed_at ? s.confirmed_at.replace('T', ' ') : ''}.`
-        : 'Off. Conversation and pictures stay non-sexual.';
-    // a parent PIN guards turning it on; once it is on, a way to switch it all off and hide it again
-    const pinRow = document.getElementById('adultPinRow');
-    if (pinRow) pinRow.hidden = s.enabled || !s.pin_needed;
-    const lockAway = document.getElementById('vaultLockAway');
-    if (lockAway) lockAway.hidden = !s.enabled;
-    // the page takes on the level's colours (see style.css), and her stage shows which level it is
-    if (typeof setCompanionMood === 'function') setCompanionMood(s.enabled ? s.level : 'off', info ? info.label : s.level);
-}
-
-function adultError(err) {
-    if (!companionOwner.active) return;
-    const status = document.getElementById('adultStatus');
-    status.textContent = err.message;
-    status.classList.add('error');
-}
-
-async function onAdultToggle(checked) {
-    const s = Companion.adult;
-    if (checked && s && !s.confirmed_at) {
-        document.getElementById('adultToggle').checked = false;
-        document.getElementById('adultConfirmBox').checked = false;
-        document.getElementById('adultConfirmBtn').disabled = true;
-        document.getElementById('adultConfirmOverlay').style.display = 'flex';
-        return;
-    }
-    await setAdult({ enabled: checked });
-}
-
-function cancelAdultConfirm() {
-    document.getElementById('adultConfirmOverlay').style.display = 'none';
-}
-
-async function confirmAdult() {
-    document.getElementById('adultConfirmOverlay').style.display = 'none';
-    await setAdult({ enabled: true, confirm_adult: true });
-}
-
-async function setAdult(changes) {
-    const selection = Companion.selection;
-    const pin = document.getElementById('adultPin');
-    if (changes.enabled === true && pin && pin.value) changes = { ...changes, pin: pin.value };   // a parent PIN, when one is set
-    try {
-        const state = await cApi('/api/adult', { method: 'POST', body: changes });
-        if (pin) pin.value = '';
-        if (!companionOwner.active || selection !== Companion.selection) return;
-        Companion.adult = state;
-    } catch (err) {
-        if (!companionOwner.active || selection !== Companion.selection) return;
-        await refreshAdult();                                    // the switch shows what is true, then why it did not change
-        adultError(err);
-        return;
-    }
-    renderAdult();
-    refreshPhotoCards();
-}
-
-function onAdultLevel(value) { return setAdult({ level: value }); }
-
-/** Switch adult mode off and close the box: everything about it goes back out of sight. */
-async function lockAdultAway() {
-    await setAdult({ enabled: false });
-    if (!adultShown() && typeof window.closeVault === 'function') window.closeVault();
-}
-function onPrivacyBlur(value) { return setAdult({ privacy_blur: value }); }
-
 async function refreshImagegenStatus() {
     const box = document.getElementById('imagegenStatus');
     if (!box) return;
@@ -546,10 +444,8 @@ function refreshPhotoCards() {
     });
 }
 
-function isSensitive(level) { return level === 'suggestive' || level === 'explicit'; }
-
 function applyBlur(figure, level, id) {
-    const blur = isSensitive(level) && (!Companion.adult || Companion.adult.privacy_blur) && !revealedPhotos.has(id);
+    const blur = window.AlteraContentControls?.blur(level) && !revealedPhotos.has(id);
     figure.classList.toggle('blurred', blur);
 }
 
@@ -590,41 +486,14 @@ function renderPhotoLoading(card, rec) {
         h('span', { text: rec.status === 'running' ? 'Taking a photo…' : 'Getting ready to take a photo…' })));
 }
 
-function levelLabel(id) {
-    const level = ((Companion.adult && Companion.adult.levels) || []).find(l => l.id === id);
-    return level ? level.label : id;
-}
-
-/** What to do about a picture that the adult-mode level does not allow yet. */
-function adultHelp(requiredLevel) {
-    const s = Companion.adult;
-    const needed = levelLabel(requiredLevel);
-    if (!s || !s.enabled) return '';                                  // never shown: adult mode stays out of sight while off
-    return `Adult mode is set to ${levelLabel(s.level)}. Raise it to ${needed} or higher to allow this.`;
-}
-
-/** Adult mode is on: only then do notices and the badge mention it (while it is off it stays out of sight, behind About's π). */
-function adultShown() { return Boolean(Companion.adult && Companion.adult.enabled); }
-
-function openAdultSettings() {
-    refreshAdult();
-    if (typeof window.openVault === 'function') window.openVault({ quick: true });     // about.js: straight to the settings
-}
-
-function settingsButton(cls) {
-    // stopPropagation: the page closes Settings on any click outside it, which would undo the open
-    return h('button', { type: 'button', class: cls, text: 'Open adult mode settings',
-        onclick: ev => { ev.stopPropagation(); openAdultSettings(); } });
-}
-
 function renderPhotoNotice(card, text, warn, rec) {
     if (!companionOwner.active) return;
     delete card.dataset.level;
-    const levelBlocked = rec && rec.required_level && adultShown();
-    card.replaceChildren(h('div', { class: 'photo-notice' + (warn ? ' warn' : '') + (levelBlocked ? ' stack' : '') },
+    const hint = rec?.required_level && window.AlteraContentControls?.hint(rec.required_level);
+    card.replaceChildren(h('div', { class: 'photo-notice' + (warn ? ' warn' : '') + (hint ? ' stack' : '') },
         h('div', { text }),
-        levelBlocked ? h('div', { class: 'photo-notice-help', text: adultHelp(rec.required_level) }) : null,
-        levelBlocked ? settingsButton('photo-notice-btn') : null));
+        hint ? h('div', { class: 'photo-notice-help', text: hint }) : null,
+        hint ? window.AlteraContentControls.button('photo-notice-btn') : null));
 }
 
 function renderPhotoReady(card, rec) {
@@ -634,7 +503,7 @@ function renderPhotoReady(card, rec) {
     card.dataset.level = rec.level;
     const figure = h('figure', { class: 'photo-figure' });
     const img = h('img', { src: imageUrl, alt: rec.scene ? `Imagined image: ${rec.scene}` : 'Imagined image' });
-    const veil = h('div', { class: 'photo-veil', text: 'Adult picture. Click to reveal.' });
+    const veil = h('div', { class: 'photo-veil', text: 'Picture hidden. Click to reveal.' });
     img.addEventListener('click', companionTracked(() => {
         if (figure.classList.contains('blurred')) {
             revealedPhotos.add(rec.id);
@@ -710,7 +579,7 @@ async function openPhotoGallery() {
         if (!Array.isArray(data?.photos) || data.photos.length > 60) throw new Error('The picture list could not be verified.');
         for (const rec of data.photos) {
             if (!PHOTO_ID.test(rec?.id || '') || rec.avatar_id !== origin.avatar_id
-                    || !['off', 'romantic', 'suggestive', 'explicit'].includes(rec.level)) continue;
+                    || (rec.level !== 'off' && !window.AlteraContentControls?.allows(rec.level))) continue;
             const card = h('div', {class: 'photo-card', 'data-photo-id': rec.id});
             items.append(card);
             if (rec.status === 'ready') renderPhotoReady(card, rec);
@@ -762,7 +631,8 @@ function setPhotoHint(text, isError, requiredLevel) {
     const hint = document.getElementById('photoBarHint');
     hint.textContent = text;
     hint.classList.toggle('error', !!isError);
-    if (requiredLevel && adultShown()) hint.append(' ', adultHelp(requiredLevel), ' ', settingsButton('link-btn'));
+    const extra = requiredLevel && window.AlteraContentControls?.hint(requiredLevel);
+    if (extra) hint.append(' ', extra, ' ', window.AlteraContentControls.button('link-btn'));
 }
 
 async function requestPhoto() {
@@ -794,18 +664,12 @@ async function requestPhoto() {
 
 function initCompanion() {
     refreshAvatars();
-    refreshAdult();
-
-    const badge = document.getElementById('moodBadge');
-    if (badge) badge.addEventListener('click', ev => { ev.stopPropagation(); openAdultSettings(); });
-    const box = document.getElementById('adultConfirmBox');
-    if (box) box.addEventListener('change', () => { document.getElementById('adultConfirmBtn').disabled = !box.checked; });
+    window.AlteraContentControls?.refresh();
     const scene = document.getElementById('photoScene');
     document.getElementById('photoGalleryDialog')?.addEventListener('cancel', event => { event.preventDefault(); closePhotoGallery(); });
     if (scene) scene.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); requestPhoto(); } });
     document.addEventListener('keydown', ev => {
         if (ev.key !== 'Escape') return;
-        cancelAdultConfirm();
         closeAvatarModal();
     });
 
@@ -815,7 +679,7 @@ function initCompanion() {
         window.toggleSettings = function () {
             original.apply(this, arguments);
             const panel = document.getElementById('settingsPanel');
-            if (panel && panel.classList.contains('open')) { refreshAvatars(); refreshAdult(); refreshImagegenStatus(); }
+            if (panel && panel.classList.contains('open')) { refreshAvatars(); refreshImagegenStatus(); }
         };
     }
     hydratePhotos();
@@ -836,16 +700,14 @@ const companionOwner = AlteraPage.component('avatar-photos', {
         return true;
     },
     clear() {
-        Companion.avatars = []; Companion.active = Companion.adult = null;
+        Companion.avatars = []; Companion.active = null;
         Companion.photosReady = Companion.forgeAvailable = false; revealedPhotos.clear(); window.companionPortraitUrl = null;
         if (document.getElementById('photoScene')) document.getElementById('photoScene').value = '';
-        for (const id of ['adultToggle', 'privacyBlurToggle', 'adultConfirmBox']) if (document.getElementById(id)) document.getElementById(id).checked = false;
-        const level = document.getElementById('adultLevel'); if (level) { level.replaceChildren(); level.value = ''; }
-        for (const id of ['forgeHint', 'premadeHint', 'premadeTitle', 'adultLevelHint', 'adultStatus', 'imagegenStatus', 'photoBarHint']) {
+        for (const id of ['forgeHint', 'premadeHint', 'premadeTitle', 'imagegenStatus', 'photoBarHint']) {
             if (document.getElementById(id)) document.getElementById(id).textContent = '';
         }
         const premadeGrid = document.getElementById('premadeGrid'); if (premadeGrid) delete premadeGrid.dataset.pending;
-        for (const id of ['avatarOverlay', 'adultConfirmOverlay']) if (document.getElementById(id)) document.getElementById(id).style.display = 'none';
+        for (const id of ['avatarOverlay']) if (document.getElementById(id)) document.getElementById(id).style.display = 'none';
         for (const id of ['avatarSummary', 'avatarGrid', 'forgeGrid', 'premadeGrid']) document.getElementById(id)?.replaceChildren();
         return true;
     }
@@ -853,8 +715,7 @@ const companionOwner = AlteraPage.component('avatar-photos', {
 // Preserve the existing classic-script/inline-handler API while owning the
 // complete action, rather than only its shared JSON request.
 for (const name of ['refreshAvatars', 'openAvatarModal', 'closeAvatarModal', 'loadForge', 'loadPremade', 'importPremadeItem', 'importAllPremade',
-    'importAvatar', 'activateAvatar', 'deleteAvatar', 'refreshAdult', 'onAdultToggle', 'cancelAdultConfirm', 'confirmAdult', 'setAdult',
-    'onAdultLevel', 'onPrivacyBlur', 'refreshImagegenStatus', 'loadPhotoCard', 'openAdultSettings', 'togglePhotoBar', 'requestPhoto', 'openPhotoGallery', 'closePhotoGallery', 'initCompanion']) {
+    'importAvatar', 'activateAvatar', 'deleteAvatar', 'refreshImagegenStatus', 'loadPhotoCard', 'togglePhotoBar', 'requestPhoto', 'openPhotoGallery', 'closePhotoGallery', 'initCompanion']) {
     window[name] = companionTracked(window[name]);
 }
 AlteraPage.ready(initCompanion);

@@ -58,6 +58,7 @@ def test_opening_a_companion_activates_her_and_makes_her_one_chat_once(world):
         companions.open_companion("nobody-here-1")
 
 
+@pytest.mark.requires_addon
 def test_opening_a_companion_starts_fetching_her_studio_pictures(world):
     mara = active_avatar(world)
     calls = []

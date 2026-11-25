@@ -29,7 +29,7 @@ separately, because it needs PyTorch, which Altera's own environment does not ha
    starts and stops it when it exits. Switching Voice off again changes only your own preference.
 
 Microsoft's online voice sends spoken text to Microsoft and is selected in `config.yaml` with
-`voice.tts_engine: edge` and `voice.tts_enabled: true`. Adult mode keeps Microsoft speech off.
+`voice.tts_engine: edge` and `voice.tts_enabled: true`. Microsoft speech is available under the core content setting.
 
 The service listens on `127.0.0.1:8770` only and refuses requests a web page could send it. It runs on the CPU by
 default. Measured once, on a 16-core PC with an AMD ROCm build of PyTorch: a 4-second sentence took about 10 seconds to

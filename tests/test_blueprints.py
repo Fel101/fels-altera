@@ -39,6 +39,11 @@ def create_app(*blueprint_names):
             continue
         module = __import__(module_name, fromlist=["bp"])
         app.register_blueprint(module.bp)
+    from core import addons
+    if value := addons.registry():
+        from core.request_security import install_request_security
+        install_request_security(app)
+        addons.mount(app, value)
 
     return app
 

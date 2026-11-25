@@ -37,7 +37,7 @@ def index():
     (kept in the browser session) speak.
 
     In the kids view it opens on a kids pal and nothing else: the server refuses every other person for that browser."""
-    from core import lock
+    from core import addons, adult, lock
     kids_view = lock.in_kids_view()
     try:
         from core import companions
@@ -61,7 +61,9 @@ def index():
         dataset_epoch=get_datastore().dataset_epoch()["value"],
         personality=get_personality(),
         config=get_config(),
-        kids_view=kids_view
+        kids_view=kids_view,
+        addon_panels=[] if kids_view else addons.panels(),
+        addon_notice="" if kids_view else adult.startup_notice(),
     )
 
 
@@ -81,9 +83,10 @@ def home_page():
 
     A first run has not chosen a model yet, so it is sent to /setup first rather than shown an empty start screen."""
     from core.profile import is_onboarding_complete
+    from core import adult
     if not is_onboarding_complete():
         return redirect(url_for("pages.setup_page"))
-    return render_template("home.html", personality=get_personality())
+    return render_template("home.html", personality=get_personality(), addon_notice=adult.startup_notice())
 
 
 @bp.route("/memory")

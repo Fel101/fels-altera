@@ -14,7 +14,7 @@ BLUEPRINTS = ('pages', 'sessions', 'core_api', 'engagement', 'admin', 'relations
               'episodes', 'reflection', 'setup', 'lock')
 
 
-def create_app(*, autostart=True):
+def create_app(*, autostart=True, addons_dir=None, load_addons=True):
     prepare()
     from core.config import get_secret_key
     from core.remote_access import install_remote_access
@@ -30,6 +30,8 @@ def create_app(*, autostart=True):
         app.register_blueprint(importlib.import_module('core.routes.' + name).bp)
     from core.routes.lock import install_lock_guard
     install_lock_guard(app)
+    from core import addons
+    addons.install(app, addons_dir, load=load_addons)
 
     @app.errorhandler(Exception)
     def handle_exception(error):

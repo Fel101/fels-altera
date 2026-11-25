@@ -1,9 +1,7 @@
 /* Altera — AI Companion Styles */
 
 /* ============================================================
-   Colours. The default is "Evening". The adult-mode level (html[data-mood], set by companion.js) warms the whole
-   page: Romantic is rosé, Suggestive candlelight, Explicit after dark. Discreet mode (html.discreet) always shows
-   Evening. The accent picker in Settings sets --user-accent*, which only Evening uses.
+   Colours and the user-selected accent.
    ============================================================ */
 
 :root {
@@ -44,77 +42,8 @@
     --success-dark: #15803d;
 }
 
-:root:not([data-theme="light"])[data-mood="romantic"] {
-    --bg-primary: #140d14;
-    --bg-secondary: #1b121b;
-    --bg-tertiary: #261824;
-    --bg-hover: #33202f;
-    --surface-raised: rgba(38, 24, 36, 0.86);
-    --surface-glass: rgba(24, 14, 22, 0.66);
-    --text-secondary: #c9b2bf;
-    --text-muted: #8f7886;
-    --border: #3a2533;
-    --accent: #f28bab;
-    --accent-hover: #ffa8c2;
-    --accent-glow: rgba(242, 139, 171, 0.28);
-    --accent-warm: #ffc0a3;
-    --user-bubble: linear-gradient(135deg, #5a2640, #3e1c30);
-    --user-bubble-border: rgba(242, 139, 171, 0.32);
-    --companion-bubble: rgba(38, 24, 36, 0.88);
-    --ambient-1: rgba(242, 139, 171, 0.16);
-    --ambient-2: rgba(255, 192, 163, 0.10);
-    --stage-light: rgba(255, 170, 150, 0.10);
-}
 
-:root:not([data-theme="light"])[data-mood="suggestive"] {
-    --bg-primary: #130a0b;
-    --bg-secondary: #1b0f11;
-    --bg-tertiary: #28151a;
-    --bg-hover: #361c23;
-    --surface-raised: rgba(40, 21, 26, 0.88);
-    --surface-glass: rgba(22, 11, 13, 0.68);
-    --text-primary: #f6ecea;
-    --text-secondary: #d1b3b0;
-    --text-muted: #957671;
-    --border: #3f2228;
-    --accent: #e8577a;
-    --accent-hover: #ff7a98;
-    --accent-glow: rgba(232, 87, 122, 0.30);
-    --accent-warm: #f0a35e;
-    --on-accent: #fff;
-    --user-bubble: linear-gradient(135deg, #6a1f38, #4a1528);
-    --user-bubble-border: rgba(232, 87, 122, 0.36);
-    --companion-bubble: rgba(40, 21, 26, 0.9);
-    --companion-bubble-border: rgba(240, 163, 94, 0.14);
-    --ambient-1: rgba(232, 87, 122, 0.18);
-    --ambient-2: rgba(240, 163, 94, 0.14);
-    --stage-light: rgba(255, 150, 70, 0.34);
-}
 
-:root:not([data-theme="light"])[data-mood="explicit"] {
-    --bg-primary: #0c0506;
-    --bg-secondary: #140809;
-    --bg-tertiary: #210c11;
-    --bg-hover: #2e1118;
-    --surface-raised: rgba(33, 12, 17, 0.9);
-    --surface-glass: rgba(14, 5, 7, 0.7);
-    --text-primary: #fbeeee;
-    --text-secondary: #dcb0b3;
-    --text-muted: #9b6d71;
-    --border: #3d141d;
-    --accent: #ff3b62;
-    --accent-hover: #ff6b86;
-    --accent-glow: rgba(255, 59, 98, 0.32);
-    --accent-warm: #f5b041;
-    --on-accent: #fff;
-    --user-bubble: linear-gradient(135deg, #7a0f2c, #520a1e);
-    --user-bubble-border: rgba(255, 59, 98, 0.42);
-    --companion-bubble: rgba(33, 12, 17, 0.92);
-    --companion-bubble-border: rgba(245, 176, 65, 0.16);
-    --ambient-1: rgba(255, 59, 98, 0.20);
-    --ambient-2: rgba(245, 176, 65, 0.12);
-    --stage-light: rgba(255, 105, 60, 0.42);
-}
 
 * {
     margin: 0;
@@ -1558,7 +1487,7 @@ input:checked + .toggle-slider:before {
    Phase 5 Polish: Theme Customization Support
    ============================================================ */
 
-/* Light: warm paper. The adult-mode moods only change its accent. */
+/* Light theme */
 [data-theme="light"] {
     --bg-primary: #faf6f3;
     --bg-secondary: #ffffff;
@@ -1582,9 +1511,6 @@ input:checked + .toggle-slider:before {
     --shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
 }
 
-[data-theme="light"][data-mood="romantic"] { --accent: #d6537d; --accent-hover: #bf3f68; --accent-glow: rgba(214, 83, 125, 0.22); }
-[data-theme="light"][data-mood="suggestive"] { --accent: #c2344f; --accent-hover: #a82840; --accent-glow: rgba(194, 52, 79, 0.22); --accent-warm: #d98a3d; }
-[data-theme="light"][data-mood="explicit"] { --accent: #b3122f; --accent-hover: #950d26; --accent-glow: rgba(179, 18, 47, 0.24); --accent-warm: #c98a1c; }
 
 [data-theme="light"] .chat-column::before { opacity: 0.10; }
 [data-theme="light"] .message.companion .message-content { box-shadow: 0 4px 16px rgba(60, 30, 50, 0.06); }
@@ -1628,11 +1554,6 @@ input:checked + .toggle-slider:before {
     background: linear-gradient(135deg, #f8f9fa, #ffffff);
 }
 
-/* the accent only colours Evening; adult mode's levels bring their own */
-.accent-mood-hint { display: none; }
-[data-mood="romantic"] .accent-mood-hint,
-[data-mood="suggestive"] .accent-mood-hint,
-[data-mood="explicit"] .accent-mood-hint { display: block; }
 
 .proactive-setting { margin-top: 20px; }
 

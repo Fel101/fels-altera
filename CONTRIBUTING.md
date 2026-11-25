@@ -44,6 +44,9 @@ The tests never reach a real model, the network or your own data. `tests/conftes
 `ALTERA_HOME` with the starter settings and fake model calls. Please keep it that way: a new test that needs a model,
 a voice or a picture uses a fake one.
 
+Tests for a separately installed add-on are marked `requires_addon`. Set `ALTERA_TEST_ADDON` to the package folder
+and run `python -m pytest -q -m requires_addon` to include its integration checks.
+
 ## Fel's Studio ports
 
 | Service | Port |

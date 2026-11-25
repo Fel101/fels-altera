@@ -263,17 +263,17 @@ SAFE_FALLBACK = ("Keep everything non-sexual: warm and affectionate, nothing mor
 
 
 class AdultSection:
-    """What the current adult-mode level allows in conversation. Fails closed: if the tier file cannot be read, the level is off."""
+    """The selected content rules, with the core policy as the fallback."""
 
     def build(self, adult_state: dict) -> str:
         level = (adult_state or {}).get("effective_level", "off")
         try:
             from core import adult
-            text = adult.chat_instruction(level)
+            text = adult.chat_instruction(level, include_rules=False)
         except Exception:
             LOGGER.exception("The adult-mode instruction could not be read, so the safe one is used")
             text = SAFE_FALLBACK
-        return f"\n## Intimacy and Adult Content\n{text}" if text else ""
+        return f"\n## Conversation boundaries\n{text}" if text else ""
 
 
 class PhotoSection:
@@ -442,9 +442,12 @@ class PromptBuilder:
             if section:
                 parts.append(section)
 
-        return "\n".join(parts) + """
-
-Remember: You're having a real conversation with a friend. Be present, be warm, be interesting."""
+        parts.append("\nRemember: You're having a real conversation with a friend. Be present, be warm, be interesting.")
+        from core import adult, safety
+        level = adult_state.get("effective_level", "off")
+        if not kids_on and level != "off" and adult.visible(level):
+            parts.append(safety.ADDON_RULES)
+        return "\n".join(parts)
 
 
 # ============================================================

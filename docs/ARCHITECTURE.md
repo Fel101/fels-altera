@@ -12,6 +12,8 @@ Overview reviewed against the working source on 2026-10-28. [plan.md](history/pl
 
 When the command-line server starts listening, it creates `inbox/altera/` and registers its actual listening address in `apps/altera.json` under the per-user Fel's Studio directory. It removes its own registration on graceful shutdown. The WSGI factory leaves listener registration to the host that owns the socket.
 
+Local add-ons register in a staging host at application startup. A failed registration publishes none of its settings, routes, or callbacks. The add-on system loads trusted Python installed by the operator. Add-on settings panels and files are available only while the add-on is loaded and Kids mode is off.
+
 ## Components
 
 ```mermaid
@@ -58,7 +60,7 @@ flowchart TD
 | Companions and notebook compaction | `core/companions.py`, `notes.py`, `routes/companions.py` |
 | Avatar/image integration | `core/companion.py`, `avatars.py`, `photos.py`, `forge.py`, `imagegen.py`, `living.py`, `selfview.py` |
 | Character cards and suite handoff | `core/charcard.py`, `characters.py`, `card_inbox.py`, `card_voice.py`, `routes/companions.py` |
-| Content gates and adult-mode state | `core/safety.py`, `adult.py`, `age_check.py`, `photo_tags.py` |
+| Content policy and image checks | `core/safety.py`, `adult.py`, `age_check.py`, `photo_tags.py` |
 | Speech and voice process | `core/tts.py`, `stt.py`, `voice_layer.py`, `voice_service.py` |
 | Direct bounded voice HTTP | `core/voice_http.py`, `tts.py`, `voice_service.py`; [startup and transport](VOICE_TRANSPORT.md) |
 | State leases and recovery | `core/state_gate.py`, `backups.py`, `routes/backups.py` |
@@ -128,7 +130,7 @@ Workspace tools restrict file access, exclude private paths and secrets, write o
 
 The PWA caches application assets only. It does not cache private HTML, APIs, generated speech or pictures. IndexedDB drafts still contain private text locally. Local providers keep inference local; cloud providers, Edge speech and web tools send content to their services. There is no automatic chat-provider fallback. The optional speech fallback is visible and blocked in adult mode.
 
-Content text gates run independently of model prompts; the vision age estimate is another heuristic check, not proof of age. Higher picture levels fail closed when the check is unavailable. The adult-mode text instructions depend on model adherence outside the hard code tripwires. [The image guide](AVATARS_AND_ADULT_MODE.md) describes those limits.
+Content checks run independently of model prompts. The vision age check estimates apparent age. Add-on routes share the application access guards, and a registered picture engine must pass the core age check before its output is saved. The core app starts with its everyday content policy. [The image guide](AVATARS.md) describes the checks.
 
 ## Configuration, diagnostics and verification
 

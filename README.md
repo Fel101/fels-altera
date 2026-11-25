@@ -39,7 +39,7 @@ shows which models fit. Small models are quicker but follow instructions less we
 | --- | --- | --- |
 | Memory and microphone models | Companions keep memories; you can speak instead of type | About 230 MB, downloaded once by `setup.bat --models` |
 | [A local voice](docs/VOICE.md#a-local-voice) | Replies read aloud by Kokoro, on your PC | 1 to 2 GB of packages plus about 350 MB of model and voices. On the CPU of the PC it was measured on, a 4-second sentence took about 10 seconds to make. A GPU is opt-in |
-| [Pictures](docs/AVATARS_AND_ADULT_MODE.md) | Companions send pictures of themselves in the chat | Needs [ComfyUI](https://github.com/Comfy-Org/ComfyUI) and a strong GPU. On a 32 GB GPU, a picture took about 50 s with Mage-Flow-Edit and 35 s with Qwen-Image-Edit. The heaviest engines need about 29 GB of free video memory |
+| [Pictures](docs/AVATARS.md) | Companions send pictures of themselves in the chat | Needs [ComfyUI](https://github.com/Comfy-Org/ComfyUI) and a strong GPU. On a 32 GB GPU, a picture took about 50 s with Mage-Flow-Edit and 35 s with Qwen-Image-Edit. The heaviest engines need about 29 GB of free video memory |
 | [Phone access](docs/ANDROID_TAILSCALE.md) | The same chats on your phone | A free [Tailscale](https://tailscale.com) account |
 
 [NPC Forge](https://github.com/Fel101/fels-npc-forge) paints portraits from descriptions and creates characters with
@@ -88,7 +88,7 @@ These are the only things that send anything out, and each one is a choice you m
 - **A cloud model** (OpenAI, OpenRouter or another remote server) receives what you write and the conversation it needs
   to answer.
 - **Microsoft's online voices** (edge-tts) receive the text of each reply they read aloud. Speech is off at first, and
-  the starter setting is the local Kokoro voice. The cloud voice is never used while adult mode is on.
+  the starter setting is the local Kokoro voice.
 - **Speech on a configured server** receives the text it speaks if you explicitly point Voice Lab or Kokoro at another
   computer. Automatically discovered Voice Lab addresses use this PC. Voice Lab speech is opt-in.
 - **Character cards** sent from NPC Forge wait in the local Fel's Studio inbox. When you preview or import an embedded
@@ -107,8 +107,7 @@ backups. See [Backup and restore](docs/BACKUP_AND_RESTORE.md) and
 
 ## Content rules
 
-Conversation and pictures stay non-sexual. An optional adult mode, for adults only, is off and out of sight by default;
-[Avatars and adult mode](docs/AVATARS_AND_ADULT_MODE.md#adult-mode) explains it.
+Altera keeps conversation and pictures non-sexual.
 
 Some rules hold whatever is switched on. They are written in the code (`core/safety.py`), so editing the settings or
 the prompt cannot loosen them:

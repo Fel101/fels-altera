@@ -265,9 +265,9 @@ def update_pal(avatar_id):
 # ============================================================
 
 def _kids_payload():
-    from core import kids, lock
+    from core import addons, kids, lock
     store = companion.get_services().avatars
-    return {**kids.get_state(), "pin_set": lock.has_pin(),
+    return {**kids.get_state(), "pin_set": lock.has_pin(), **({"blocked_reason": addons.KIDS_BLOCK} if addons.installed() else {}),
             "pals": sorted(r.get("name") or r["id"] for r in store.list() if kids.is_on(r))}
 
 
@@ -282,13 +282,15 @@ def set_kids_state():
     again (refused while a pal uses it). Both need the PIN once one exists: the lock is a grown-up's decision."""
     if _cross_site():
         return _forbidden()
-    from core import kids, lock
+    from core import addons, kids, lock
     data = request.get_json(silent=True) or {}
     if (not isinstance(data, dict) or type(data.get("enabled")) is not bool
             or not set(data) <= {"enabled", "understood", "pin"}):
         return jsonify({"error": "Send enabled: true (with understood: true and a PIN) or enabled: false (with the PIN)."}), 400
     try:
         if data["enabled"]:
+            if addons.installed():
+                raise kids.KidsError(addons.KIDS_BLOCK)
             if data.get("understood") is not True:
                 raise kids.KidsError("Confirm that you understand kids mode is a guardrail, not a guarantee.", 400)
             if lock.has_pin():
@@ -502,6 +504,9 @@ def sync_pictures(avatar_id):
     """Fetch the pictures approved in NPC Forge's studio (in the background)."""
     if _cross_site():
         return _forbidden()
+    from core import addons
+    if not addons.picture_source():
+        return jsonify({"error": "No installed add-on supplies pictures to sync."}), 404
     s = companion.get_services()
     if not s.avatars.get(avatar_id):
         return jsonify({"error": "That companion was not found."}), 404

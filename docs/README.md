@@ -17,7 +17,7 @@ Only a chat model is required. Speech, NPC Forge and ComfyUI are optional. [NPC 
 | [Characters](CHARACTERS.md) | Character cards (V1, V2 and V3) and what Altera reads from them |
 | [Kids mode](KIDS_MODE.md) | A pal for a child, the parent PIN, the lock screen and the kids view |
 | [Portraits](PORTRAITS.md) | Painting a portrait in NPC Forge, and the time and memory it takes |
-| [Avatars, pictures and adult mode](AVATARS_AND_ADULT_MODE.md) | NPC Forge import, image workflows, content levels and their limits |
+| [Avatars and pictures](AVATARS.md) | NPC Forge import, image workflows and content checks |
 | [Reply settings](REPLY_SETTINGS.md) | Temperature, reply length, optional sampler settings, and a person's own |
 | [Memory controls](MEMORY_CONTROLS.md) | Remember, Correct, Forget, provenance and rebuilding |
 | [Our story and reflection](OUR_STORY.md) | Curated episodes, sources, pins, retrieval decay and optional reflection |

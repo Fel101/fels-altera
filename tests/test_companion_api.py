@@ -60,47 +60,51 @@ def active_avatar(world):
 
 # ---------------------------------------------------------------- adult-mode routes
 
+@pytest.mark.requires_addon
 def test_adult_mode_defaults_off_and_lists_levels(client):
-    data = client.get("/api/adult").get_json()
+    data = client.get("/addons/adult_studio/settings").get_json()
     assert data["enabled"] is False and data["effective_level"] == "off"
     assert [level["id"] for level in data["levels"]] == ["off", "romantic", "suggestive", "explicit"]
 
 
+@pytest.mark.requires_addon
 def test_adult_mode_needs_confirmation_then_works(client):
-    r = client.post("/api/adult", json={"enabled": True})
+    r = client.post("/addons/adult_studio/settings", json={"enabled": True})
     assert r.status_code == 400 and "18" in r.get_json()["error"]
-    assert client.get("/api/adult").get_json()["enabled"] is False
-    r = client.post("/api/adult", json={"enabled": True, "confirm_adult": True, "level": "suggestive"})
+    assert client.get("/addons/adult_studio/settings").get_json()["enabled"] is False
+    r = client.post("/addons/adult_studio/settings", json={"enabled": True, "confirm_adult": True, "level": "suggestive"})
     assert r.status_code == 200 and r.get_json()["effective_level"] == "suggestive"
-    assert client.post("/api/adult", json={"level": "off"}).status_code == 400
-    assert client.post("/api/adult", json={"enabled": False}).get_json()["effective_level"] == "off"
+    assert client.post("/addons/adult_studio/settings", json={"level": "off"}).status_code == 400
+    assert client.post("/addons/adult_studio/settings", json={"enabled": False}).get_json()["effective_level"] == "off"
 
 
+@pytest.mark.requires_addon
 def test_with_a_parent_pin_turning_adult_mode_on_needs_the_pin(client, world):
     from core import lock
-    assert client.get("/api/adult").get_json()["pin_needed"] is False
+    assert client.get("/addons/adult_studio/settings").get_json()["pin_needed"] is False
     lock.set_pin("2468")
-    assert client.get("/api/adult").get_json()["pin_needed"] is True
+    assert client.get("/addons/adult_studio/settings").get_json()["pin_needed"] is True
     on = {"enabled": True, "confirm_adult": True}
-    r = client.post("/api/adult", json=on)
+    r = client.post("/addons/adult_studio/settings", json=on)
     assert r.status_code == 403 and r.get_json()["code"] == "pin_needed" and r.get_json()["enabled"] is False
-    r = client.post("/api/adult", json={**on, "pin": "1111"})
+    r = client.post("/addons/adult_studio/settings", json={**on, "pin": "1111"})
     assert r.status_code == 403 and r.get_json()["code"] == "bad_pin"
-    assert client.get("/api/adult").get_json()["enabled"] is False
-    assert client.post("/api/adult", json={**on, "pin": "2468"}).get_json()["enabled"] is True
-    assert client.post("/api/adult", json={"level": "suggestive"}).status_code == 200      # once on, no PIN to adjust it
-    assert client.post("/api/adult", json={"enabled": False}).get_json()["enabled"] is False   # or to turn it off
+    assert client.get("/addons/adult_studio/settings").get_json()["enabled"] is False
+    assert client.post("/addons/adult_studio/settings", json={**on, "pin": "2468"}).get_json()["enabled"] is True
+    assert client.post("/addons/adult_studio/settings", json={"level": "suggestive"}).status_code == 200      # once on, no PIN to adjust it
+    assert client.post("/addons/adult_studio/settings", json={"enabled": False}).get_json()["enabled"] is False   # or to turn it off
 
 
+@pytest.mark.requires_addon
 def test_state_changing_routes_refuse_other_websites(client, world):
     active_avatar(world)
     for headers in ({"Origin": "http://evil.example"}, {"Sec-Fetch-Site": "cross-site"}):
-        assert client.post("/api/adult", json={"enabled": True, "confirm_adult": True}, headers=headers).status_code == 403
+        assert client.post("/addons/adult_studio/settings", json={"enabled": True, "confirm_adult": True}, headers=headers).status_code == 403
         assert client.post("/api/photos", json={"scene": "in a cafe"}, headers=headers).status_code == 403
         assert client.post("/api/avatars/import", json={"npc_id": "mara-bell-47ab97"}, headers=headers).status_code == 403
         assert client.delete("/api/avatars/mara-bell-47ab97", headers=headers).status_code == 403
-    assert client.get("/api/adult").get_json()["enabled"] is False
-    ok = client.post("/api/adult", json={"level": "romantic"}, headers={"Origin": "http://localhost"})
+    assert client.get("/addons/adult_studio/settings").get_json()["enabled"] is False
+    ok = client.post("/addons/adult_studio/settings", json={"level": "romantic"}, headers={"Origin": "http://localhost"})
     assert ok.status_code == 200
 
 
@@ -158,18 +162,20 @@ def test_camera_button_makes_a_picture_and_saves_it_in_the_chat(client, world):
     assert [p["id"] for p in client.get("/api/photos").get_json()["photos"]] == [rec["id"]]
 
 
+@pytest.mark.requires_addon
 def test_camera_button_respects_the_rules(client, world):
     active_avatar(world)
     r = client.post("/api/photos", json={"scene": "a 16 year old at school"})
     assert r.status_code == 422 and r.get_json()["blocked"]
     r = client.post("/api/photos", json={"scene": "in lingerie"})
     assert r.status_code == 422 and r.get_json()["error"] == 'Altera does not make pictures of "lingerie".'   # no hint while off
-    client.post("/api/adult", json={"enabled": True, "confirm_adult": True, "level": "suggestive"})
+    client.post("/addons/adult_studio/settings", json={"enabled": True, "confirm_adult": True, "level": "suggestive"})
     assert client.post("/api/photos", json={"scene": "in lingerie"}).status_code == 202
     assert client.post("/api/photos", json={"scene": "looks like Emma Watson"}).status_code == 422
     assert world.backend.calls and all("Watson" not in c["prompt"] for c in world.backend.calls)
 
 
+@pytest.mark.requires_addon
 def test_a_level_block_tells_the_ui_which_level_would_allow_it(client, world):
     active_avatar(world)
     r = client.post("/api/photos", json={"scene": "wearing a sexy sheer dress"})
@@ -180,16 +186,17 @@ def test_a_level_block_tells_the_ui_which_level_would_allow_it(client, world):
     assert hard["blocked"] and hard["required_level"] is None                      # nothing a level can fix
     rec = world.photos.create("wearing a sexy dress", level="off", record_blocked=True)
     assert client.get(f"/api/photos/{rec['id']}").get_json()["required_level"] == "suggestive"
-    client.post("/api/adult", json={"enabled": True, "confirm_adult": True, "level": "suggestive"})
+    client.post("/addons/adult_studio/settings", json={"enabled": True, "confirm_adult": True, "level": "suggestive"})
     ok = world.photos.create("wearing a sexy dress", level="suggestive")
     assert client.post(f"/api/photos/{ok['id']}/reroll").status_code == 202
-    client.post("/api/adult", json={"enabled": False})
+    client.post("/addons/adult_studio/settings", json={"enabled": False})
     again = client.post(f"/api/photos/{ok['id']}/reroll")
     assert again.status_code == 422 and again.get_json()["required_level"] == "suggestive"
 
 
 # ---------------------------------------------------------------- ready-made pictures
 
+@pytest.mark.requires_addon
 def test_premade_routes_list_and_import_one_at_a_time(client, world):
     make_studio(world.forge)
     active_avatar(world)
@@ -209,6 +216,7 @@ def test_premade_routes_list_and_import_one_at_a_time(client, world):
     assert client.get(f"/api/photos/{photo['id']}/image").data == PNG + b"s-0123abcd"
 
 
+@pytest.mark.requires_addon
 def test_premade_import_refusals(client, world):
     make_studio(world.forge)
     active_avatar(world)
@@ -223,9 +231,16 @@ def test_premade_import_refusals(client, world):
                        headers={"Origin": "http://evil.example"}).status_code == 403
 
 
+@pytest.mark.requires_addon
 def test_premade_studio_image_route_is_safe_and_uncached(client, world):
     make_studio(world.forge)
-    ok = client.get("/api/forge/mara-bell-47ab97/adult/s-0123abcd")
+    active_avatar(world)
+    waiting = client.get("/api/avatars/mara-bell-47ab97/premade").json["items"][0]
+    assert waiting["image_url"] is None and world.checker.calls == 0
+    assert client.get("/api/forge/mara-bell-47ab97/adult/s-0123abcd").status_code == 404
+    response = client.post("/api/avatars/mara-bell-47ab97/premade/import", json={"item_id": waiting["item_id"]})
+    assert response.status_code == 200 and world.checker.calls == 1
+    ok = client.get(f"/api/photos/{response.json['id']}/image")
     assert ok.status_code == 200 and ok.headers["Cache-Control"] == "no-store" and ok.data == PNG + b"s-0123abcd"
     for path in ("/api/forge/mara-bell-47ab97/adult/s-2123abcd", "/api/forge/mara-bell-47ab97/adult/..%2Fnpc.json",
                  "/api/forge/..%2Fx/adult/s-0123abcd", "/api/forge/none-none-000000/adult/s-0123abcd"):
@@ -402,6 +417,7 @@ def test_non_stream_reply_returns_the_pictures(engine, world):
     assert engine.send_message("hi", world.store.create_session("t")) == "Voila"
 
 
+@pytest.mark.requires_addon
 def test_system_prompt_follows_adult_mode_and_the_avatar(engine, world):
     sid = world.store.create_session("t")
     engine.send_message("hi", sid)
@@ -421,13 +437,15 @@ def test_system_prompt_follows_adult_mode_and_the_avatar(engine, world):
     assert "EXPLICIT" in system_prompt(engine) and "never sexualise anyone under 18" in system_prompt(engine)
 
 
+@pytest.mark.requires_addon
 def test_a_broken_tier_file_fails_closed(engine, world, monkeypatch):
     adult.update_state({"enabled": True, "confirm_adult": True, "level": "explicit"})
-    monkeypatch.setattr(adult, "chat_instruction", lambda level: (_ for _ in ()).throw(FileNotFoundError("gone")))
+    monkeypatch.setattr(adult, "chat_instruction", lambda level, **kwargs: (_ for _ in ()).throw(FileNotFoundError("gone")))
     engine.send_message("hi", world.store.create_session("t"))
     assert "Keep everything non-sexual" in system_prompt(engine) and "EXPLICIT" not in system_prompt(engine)
 
 
+@pytest.mark.requires_addon
 def test_broken_adult_state_counts_as_off(engine, world, monkeypatch):
     adult.update_state({"enabled": True, "confirm_adult": True, "level": "explicit"})
     monkeypatch.setattr(adult, "get_state", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("db locked")))
@@ -443,6 +461,7 @@ def import_all_premade(world):
         i["scene"], i["level"], f"mara-bell-47ab97:{i['item_id']}", i["label"]) for i in world.avatars.forge_premade("mara-bell-47ab97")}
 
 
+@pytest.mark.requires_addon
 def test_she_can_send_a_ready_made_picture_by_id_and_it_arrives_at_once(engine, world):
     ready = import_all_premade(world)
     cafe = ready["s-0123abcd"]
@@ -455,6 +474,7 @@ def test_she_can_send_a_ready_made_picture_by_id_and_it_arrives_at_once(engine, 
     assert saved.endswith(f"[[photo:{cafe['id']}]]")
 
 
+@pytest.mark.requires_addon
 def test_a_ready_made_picture_above_the_level_is_remade_at_the_current_level(engine, world):
     ready = import_all_premade(world)
     robe = ready["s-1123abcd"]                                                       # filed under Suggestive; adult mode is off
@@ -465,6 +485,7 @@ def test_a_ready_made_picture_above_the_level_is_remade_at_the_current_level(eng
     assert "silk robe by a bedroom window" in world.backend.calls[-1]["prompt"]
 
 
+@pytest.mark.requires_addon
 def test_a_ready_made_picture_whose_words_need_a_higher_level_is_blocked_with_the_reason(engine, world):
     world.avatars.import_from_forge("mara-bell-47ab97")
     lingerie = world.photos.import_premade("mara-bell-47ab97", PNG, "wearing lingerie on a bed", "suggestive", "k:1", "Lingerie")
@@ -480,6 +501,7 @@ def test_an_unknown_id_makes_a_normal_picture(engine, world):
     assert len(photos) == 1 and photos[0]["status"] == "ready" and len(world.backend.calls) == 1
 
 
+@pytest.mark.requires_addon
 def test_a_plain_request_gets_a_fitting_ready_made_picture_before_a_new_one(engine, world):
     ready = import_all_premade(world)
     engine.llm.chunks = ["Sure!"]
@@ -492,6 +514,7 @@ def test_a_plain_request_gets_a_fitting_ready_made_picture_before_a_new_one(engi
     assert not photos[0].get("premade") and "mountain top" in world.backend.calls[-1]["prompt"]   # nothing fits: made new
 
 
+@pytest.mark.requires_addon
 def test_the_prompt_lists_only_the_ready_made_pictures_the_level_allows(engine, world):
     ready = import_all_premade(world)
     sid = world.store.create_session("t")
@@ -510,6 +533,7 @@ def test_no_ready_made_section_without_ready_made_pictures(engine, world):
     assert "Sending Photos" in system_prompt(engine) and "Ready-made" not in system_prompt(engine)
 
 
+@pytest.mark.requires_addon
 def test_a_level_block_is_explained_to_the_model_next_turn(engine, world):
     active_avatar(world)
     blocked = world.photos.create("wearing a sexy dress", level="off", record_blocked=True)

@@ -7,6 +7,7 @@ __pycache__/
 
 # Local app state
 data/
+/addons/
 # scratch files written from the chat drawer
 workspace/
 static/audio/

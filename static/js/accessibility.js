@@ -2,7 +2,7 @@
 (() => {
     let active = null, returnTo = null, inhibited = [];
     const closers = {settingsPanel: 'toggleSettings', notesOverlay: 'closeNotes', meetOverlay: 'closeMeetModal',
-        avatarOverlay: 'closeAvatarModal', adultConfirmOverlay: 'cancelAdultConfirm', portraitView: 'closePortraitView', onboardingOverlay: 'skipOnboarding'};
+        aboutOverlay: 'closeAbout', avatarOverlay: 'closeAvatarModal', portraitView: 'closePortraitView', onboardingOverlay: 'skipOnboarding'};
     const visible = node => node.getClientRects().length && getComputedStyle(node).visibility !== 'hidden';
     const controls = node => [...node.querySelectorAll('button, a[href], input, select, textarea, [tabindex]')]
         .filter(el => !el.disabled && el.tabIndex >= 0 && !el.closest('[inert]') && visible(el));
@@ -47,8 +47,8 @@
         }
     }, true);
     AlteraPage.ready(() => {
-        const names = {voiceToggle: 'Speak replies', proactiveToggle: 'Proactive check-ins', adultToggle: 'Enable adult mode',
-            privacyBlurToggle: 'Blur adult pictures', proactiveInterval: 'Hours between check-ins', customBaseUrl: 'Custom provider base URL', customApiKey: 'Custom provider API key',
+        const names = {voiceToggle: 'Speak replies', proactiveToggle: 'Proactive check-ins',
+            proactiveInterval: 'Hours between check-ins', customBaseUrl: 'Custom provider base URL', customApiKey: 'Custom provider API key',
             customDefaultModel: 'Custom provider default model', notesAbout: 'Notes about you', notesStory: 'Notes about your story together'};
         for (const [id, name] of Object.entries(names)) document.getElementById(id)?.setAttribute('aria-label', name);
         new MutationObserver(update).observe(document.body, {subtree: true, attributes: true, attributeFilter: ['style', 'class', 'hidden']});

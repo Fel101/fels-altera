@@ -140,6 +140,18 @@ def _no_real_model_and_a_fresh_notes_service(monkeypatch):
     monkeypatch.setattr(suite_gpu, '_ask_local_model', lambda *args, **kwargs: None)
     monkeypatch.setattr(fels_suite, '_find_lms', lambda: None)
 
+    # Home and chat may check whether library cards are available. A test can still supply its own Forge client.
+    from types import SimpleNamespace
+    from core import companion
+    build_services = companion.build_services
+
+    def build_offline_services(*args, **kwargs):
+        services = build_services(*args, **kwargs)
+        services.avatars.forge_client = lambda: SimpleNamespace(library_mode=lambda: "")
+        return services
+
+    monkeypatch.setattr(companion, "build_services", build_offline_services)
+
     # The mood is analysed in the background after a reply; in a test it runs before the reply is done, so it can be looked at.
     from core import emotion
     monkeypatch.setattr(emotion, "RUN_INLINE", True)

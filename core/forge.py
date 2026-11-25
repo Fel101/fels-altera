@@ -32,12 +32,14 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from core import avatars, fels_suite, safety
+from core import avatars, charcard, fels_suite, safety
 
 LOGGER = logging.getLogger(__name__)
 
 DEFAULT_URL = f"http://127.0.0.1:{fels_suite.PORTS['npc-forge']}"
 GPU_API = 44                           # GET /api/gpu, job and step `code`, gpu_busy `holders`, roll `adult`, an empty surname
+CARD_API = 48
+LEGACY_LIBRARY_API = 44                # the shipped 1.0 release
 MEET_SETTING = "modern"
 MEET_STYLE = "photoreal"
 UNDERAGE_GROUPS = {"child", "teen"}     # Forge's core age-group IDs below 18
@@ -179,7 +181,7 @@ class ForgeClient:
                 raise
         return self._request_at(url, "GET", "/api/health", timeout=timeout)
 
-    def _request_at(self, url, method, path, body=None, timeout=None):
+    def _request_at(self, url, method, path, body=None, timeout=None, *, binary_limit=None):
         if not is_loopback(url):
             raise ForgeError("NPC Forge must be on this computer (127.0.0.1).")
         data = json.dumps(body).encode("utf-8") if body is not None else (b"{}" if method != "GET" else None)
@@ -189,15 +191,16 @@ class ForgeClient:
             open_request = self._open or urllib.request.build_opener(
                 urllib.request.ProxyHandler({}), _NoRedirect()).open
             with open_request(request, timeout=timeout or self.timeout) as response:
+                limit = binary_limit or MAX_RESPONSE_BYTES
                 length = response.headers.get("Content-Length")
                 if length is not None:
                     size = int(length)
-                    if size < 0 or size > MAX_RESPONSE_BYTES:
+                    if size < 0 or size > limit:
                         raise ForgeError("NPC Forge returned an invalid or oversized response.")
-                raw = response.read(MAX_RESPONSE_BYTES + 1)
-                if len(raw) > MAX_RESPONSE_BYTES or (length is not None and len(raw) != size):
+                raw = response.read(limit + 1)
+                if len(raw) > limit or (length is not None and len(raw) != size):
                     raise ForgeError("NPC Forge returned an invalid or oversized response.")
-                return json.loads(raw or b"{}")
+                return raw if binary_limit else json.loads(raw or b"{}")
         except urllib.error.HTTPError as e:
             code = e.code
             e.close()
@@ -208,6 +211,50 @@ class ForgeClient:
             raise ForgeError("Could not reach NPC Forge. Check its address and try again.") from None
         except (http.client.HTTPException, ValueError, UnicodeError):
             raise ForgeError("NPC Forge returned an invalid or oversized response.") from None
+
+    def library_mode(self):
+        health = self._discover()["health"]
+        block = health.get("fels")
+        block = block if isinstance(block, dict) else {}
+        api = block.get("api")
+        if type(api) is not int:
+            config = self._call("GET", "/api/config", timeout=min(self.timeout, 2.5))
+            api = config.get("api_version") if isinstance(config, dict) else None
+        if type(api) is int and api >= CARD_API:
+            return "cards"
+        if api == LEGACY_LIBRARY_API:
+            return "legacy"
+        raise ForgeError("Update NPC Forge to a release with character cards, then try again.")
+
+    def card(self, npc_id, form="charx"):
+        if not avatars.valid_id(npc_id) or form not in ("charx", "png"):
+            raise ForgeError("Choose a character from NPC Forge's library.")
+        self._discover()
+        try:
+            return self._request_at(self.url, "GET", f"/api/npcs/{npc_id}/card.{form}?voice=0",
+                                    binary_limit=charcard.file_limit(f"card.{form}"))
+        except ForgeHTTPError as error:
+            if error.status in {400, 404}:
+                raise ForgeError("NPC Forge could not export this character. Open it in Forge and make a portrait in a core setting.") from None
+            raise
+
+    def card_library(self):
+        rows = self._call("GET", "/api/npcs")
+        if not isinstance(rows, list):
+            raise ForgeError("NPC Forge could not list its characters. Restart it and try again.")
+        result = []
+        for row in rows:
+            if not isinstance(row, dict) or not avatars.valid_id(row.get("id")) or row.get("setting") == "models":
+                continue
+            assets = row.get("has") if isinstance(row.get("has"), dict) else {}
+            portrait = assets.get("portrait") is True
+            age = row.get("age") if type(row.get("age")) is int else None
+            reason = (safety.age_problem(age) or "") if portrait else "No portrait yet. Make one in NPC Forge first."
+            result.append({"id": row["id"], "name": row.get("name") or row["id"], "age": age,
+                           "gender": row.get("gender") or "", "style": row.get("style") or "",
+                           "has_portrait": portrait, "has_thumb": portrait, "has_body": assets.get("sprite") is True,
+                           "needs_age": False, "eligible": portrait and not reason, "reason": reason, "premade": 0})
+        return result
 
     # ---- what is available ----------------------------------------------------------------------------------------
     def status(self) -> dict:
@@ -567,7 +614,7 @@ def _forge_python(config=None):
     return None
 
 
-def start(config=None) -> dict:
+def start(config=None, *, legacy_launch=True) -> dict:
     """Start NPC Forge on its configured or suite port if it is not already running."""
     client = ForgeClient(config)
     try:
@@ -579,6 +626,8 @@ def start(config=None) -> dict:
             return {"started": False, "message": f"The NPC Forge port is already in use. {error}"}
     else:
         return {"started": False, "message": "NPC Forge is already running."}
+    if not legacy_launch:
+        return {"started": False, "message": "Start NPC Forge from its own shortcut, then check again here."}
     folder = forge_folder(config)
     python = _forge_python(config) if folder else None
     if not folder or not python:

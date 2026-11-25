@@ -13,6 +13,7 @@
 flask>=3.0
 waitress>=3.0,<4      # One-process, threaded WSGI server; also runs on Windows.
 werkzeug>=3.0          # HTTPException, used directly by the error handler in altera.py
+itsdangerous>=2.2,<3   # Expiring confirmation for the exact card voice and destination.
 
 # Config and profile files
 PyYAML>=6.0

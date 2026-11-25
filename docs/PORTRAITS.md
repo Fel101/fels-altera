@@ -19,10 +19,11 @@ nothing to make them from.
 ## A character from NPC Forge's library
 
 **Choose from NPC Forge's library…** shows the characters you already made in NPC Forge that have a portrait. Click one
-and its portrait is used: nothing is painted, and NPC Forge's library is only read. A character under 18 is greyed out,
+and its existing portrait is copied. A character under 18 is greyed out,
 with the reason on hover, and the portrait goes through the age check before it is used. It counts as a portrait from
-NPC Forge, so **Bring it to life** makes the living portrait from that character. NPC Forge does not need to be running for
-this, only its library folder (`imagegen.npc_forge_library` in `config.yaml`); without that folder the picker says so.
+NPC Forge, so **Bring it to life** makes the living portrait from that character. Run the current NPC Forge to fetch
+its cards through the API. With NPC Forge 1.0 (API 44), the picker uses
+`imagegen.npc_forge_library` in `config.yaml` for compatibility.
 
 ## Making one
 

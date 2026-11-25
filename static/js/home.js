@@ -7,7 +7,7 @@
     const PLURAL = {pal: 'Pals', character: 'Characters', companion: 'Companions'};
     const EMPTY = {
         pal: 'No pals yet. Make one in a few seconds: a name, a vibe and a voice.',
-        character: 'No characters yet. Import a character card (a .png with a card in it, or a .json card).',
+        character: 'No characters yet. Import a CHARX, PNG or JSON character card.',
         companion: 'No companions yet. Write one from a name, an age and a few words, or meet someone new in NPC Forge.',
     };
     const FEATURES = ['memory', 'notes', 'story', 'presence'];
@@ -122,6 +122,8 @@
             button.append(image, create(doc, 'span', {class: 'home-person-name'}, person.name || 'Unnamed'),
                 create(doc, 'span', {class: `home-badge ${kind}`}, KIND_LABELS[kind]),
                 ...(kind === 'pal' && person.kids === true ? [create(doc, 'span', {class: 'home-badge kids'}, 'Kids mode')] : []),
+                ...(person.licence ? [create(doc, 'span', {class: 'home-person-meta'},
+                    [person.ai_generated && 'AI-generated', person.licence].filter(Boolean).join(' · '))] : []),
                 create(doc, 'span', {class: 'home-person-meta'}, describe(person).split(' · ').slice(1).join(' · ')));
             button.addEventListener('click', () => open(person));
             wrap.append(button);
@@ -204,11 +206,188 @@
             try {
                 const form = new FormData();
                 form.append('file', file, file.name || 'card');
-                await call('/api/characters/import', {method: 'POST', body: form});
-                navigate('/');
+                finishCard(await call('/api/characters/import', {method: 'POST', body: form}));
             } catch (error) {
                 status(error.message || 'Could not import the card. Try again.');
                 state.busy = false;
+            }
+        }
+
+        function finishCard(result) {
+            if (result?.card_voice?.name && $('cardVoiceDialog')) {
+                state.busy = false;
+                openCardVoice(result.card_id, result.card_voice);
+                if (result.inbox_notice) $('cardVoiceStatus').textContent =
+                    `${result.inbox_notice} ${$('cardVoiceStatus').textContent}`;
+            } else if (result?.inbox_notice) {
+                status(result.inbox_notice);
+                state.busy = false;
+                load().then(() => status(result.inbox_notice));
+                loadInbox(true);
+            } else navigate('/');
+        }
+
+        // ---- cards sent to this Altera -----------------------------------------------------------------------------
+        const inboxProblems = new Map();
+        let inboxChecked = -Infinity;
+        let inboxStamp;
+        let inboxBusy = false;
+        async function loadInbox(force = false) {
+            if (!$('homeInbox') || inboxBusy || (!force && Date.now() - inboxChecked < 10000)) return;
+            inboxChecked = Date.now();
+            try {
+                const {cards = []} = await call('/api/characters/inbox');
+                const stamp = JSON.stringify(cards);
+                if (inboxBusy || (stamp === inboxStamp && !force)) return;
+                inboxStamp = stamp;
+                const n = cards.length, noun = n === 1 ? 'character' : 'characters';
+                const sender = cards[0]?.sender_name;
+                const from = sender && cards.every(card => card.sender_name === sender) ? ` from ${sender}` : '';
+                $('homeInboxTitle').textContent = `${n} ${noun}${from} waiting`;
+                $('homeInbox').hidden = !n;
+                $('homeInboxCards').replaceChildren(...cards.map(card => {
+                    const row = create(doc, 'li');
+                    const info = create(doc, 'div');
+                    info.append(create(doc, 'strong', {}, card.label || card.name));
+                    const problem = card.problem || inboxProblems.get(card.id);
+                    if (problem) info.append(create(doc, 'p', {class: 'home-muted'}, problem));
+                    const actions = create(doc, 'div', {class: 'home-inbox-actions'});
+                    for (const [label, method] of [['Import', 'POST'], ['Dismiss', 'DELETE']]) {
+                        const button = create(doc, 'button', {type: 'button', 'aria-label': `${label} ${card.label || card.name}`,
+                            class: label === 'Import' ? 'home-primary' : 'home-inbox-secondary'}, label);
+                        button.disabled = method === 'POST' && !!card.problem;
+                        button.addEventListener('click', () => actOnInbox(card, method));
+                        actions.append(button);
+                    }
+                    row.append(info, actions);
+                    return row;
+                }));
+            } catch (_) {
+                if (!$('homeInbox').hidden) $('homeInboxStatus').textContent = 'The inbox could not refresh. Try again shortly.';
+            }
+        }
+
+        async function actOnInbox(card, method) {
+            if (inboxBusy || state.busy) return;
+            inboxBusy = true;
+            state.busy = true;
+            $('homeInbox').setAttribute('aria-busy', 'true');
+            const previousFocus = doc.activeElement;
+            $('homeInboxStatus').textContent = method === 'POST'
+                ? 'Altera is checking the card and its pictures. Wait for the import to finish.' : 'Dismissing the card…';
+            let result;
+            try {
+                result = await call(`/api/characters/inbox/${encodeURIComponent(card.id)}`, {method});
+                inboxProblems.delete(card.id);
+                $('homeInboxStatus').textContent = result.inbox_notice || (method === 'DELETE' ? 'Card dismissed.' : 'Card imported.');
+            } catch (error) {
+                inboxProblems.set(card.id, error.message);
+                $('homeInboxStatus').textContent = error.message;
+            } finally {
+                inboxBusy = false;
+                state.busy = false;
+                $('homeInbox').removeAttribute('aria-busy');
+            }
+            if (result && method === 'POST') {
+                finishCard(result);
+                if (result.card_voice?.name) loadInbox(true);
+            } else if (result && method === 'DELETE') {
+                await loadInbox(true);
+                (doc.querySelector('#homeInboxCards button:not(:disabled)') || $('homeChatLink'))?.focus();
+            } else {
+                previousFocus?.focus();
+            }
+        }
+
+        // ---- optional voice selection after importing a card --------------------------------------------------------
+        function openCardVoice(id, offer, fromSettings = false) {
+            state.cardVoice = {id, offer, fromSettings, review: null, busy: false};
+            if (fromSettings) closeDialog('palSettingsDialog');
+            $('cardVoiceTitle').textContent = 'Voice from the card';
+            $('cardVoiceStatus').textContent = offer.archive
+                ? `The card includes ${offer.name}. Preview its voice file in Voice Lab on this computer.`
+                : `The card lists ${offer.name}. Check whether the preset is ready in Voice Lab.`;
+            $('cardVoiceTerms').hidden = $('cardVoiceUse').hidden = $('cardVoiceEnable').hidden = true;
+            $('cardVoicePreview').hidden = false;
+            $('cardVoicePreview').textContent = offer.archive ? 'Preview voice file' : 'Check Voice Lab';
+            $('cardVoiceLeave').textContent = fromSettings ? 'Back to settings' : 'Open chat';
+            $('cardVoiceConsent').checked = false;
+            showDialog('cardVoiceDialog');
+            $('cardVoicePreview').focus();
+        }
+
+        function leaveCardVoice() {
+            const context = state.cardVoice;
+            if (!context || context.busy) return;
+            closeDialog('cardVoiceDialog');
+            state.cardVoice = null;
+            if (!context.fromSettings) {
+                navigate('/');
+                return;
+            }
+            showDialog('palSettingsDialog');
+            $('palSettingsCardVoice').focus();
+            if (context.saved) options().then(({voices}) => fillVoices($('palSettingsVoice'), voices, context.saved))
+                .catch(() => {});
+        }
+
+        function cardVoiceBusy(context, busy) {
+            context.busy = busy;
+            for (const id of ['cardVoicePreview', 'cardVoiceEnable', 'cardVoiceLeave']) $(id).disabled = busy;
+            $('cardVoiceUse').disabled = busy || (context.review?.cloned && !$('cardVoiceConsent').checked);
+        }
+
+        async function doCardVoice(action) {
+            const context = state.cardVoice;
+            if (!context || context.busy || (action === 'use' && $('cardVoiceUse').disabled)) return;
+            const message = $('cardVoiceStatus');
+            cardVoiceBusy(context, true);
+            message.textContent = action === 'preview' ? 'Checking with Voice Lab…'
+                : 'Saving the voice. Wait for Voice Lab to finish.';
+            try {
+                if (action === 'enable') {
+                    await call('/api/voice/engine', json('POST', {engine: 'voicelab'}));
+                    message.textContent = context.review.remote ? 'Voice Lab is on. Speech text will go to your configured server.'
+                        : 'Voice Lab is on. Its voices will speak your replies.';
+                    $('cardVoiceEnable').hidden = true;
+                } else {
+                    const body = {action, ...(action === 'use' ? {review: context.review.review, permission: true} : {})};
+                    const result = await call(`/api/characters/${encodeURIComponent(context.id)}/card-voice`, json('POST', body));
+                    if (action === 'preview') {
+                        context.review = result;
+                        message.textContent = result.cloned ? `${result.name} includes a person’s recording. Review the speaker and allowed use.`
+                            : result.archive ? `${result.name} is ready to import into Voice Lab’s Cast.`
+                                : `${result.name} is ready ${result.remote ? 'on your configured Voice Lab server' : 'in Voice Lab'}.`;
+                        $('cardVoiceTerms').hidden = !(result.origin || result.allowed_use || result.cloned);
+                        $('cardVoiceOrigin').textContent = result.origin ? `Source — ${result.origin}` : '';
+                        $('cardVoiceAllowed').textContent = result.allowed_use ? `Allowed use — ${result.allowed_use}` : '';
+                        $('cardVoiceConsentRow').hidden = !result.cloned;
+                        $('cardVoiceConsent').checked = false;
+                        $('cardVoiceUse').hidden = false;
+                        $('cardVoiceUse').textContent = result.archive ? 'Import and use this voice' : 'Use this voice';
+                        $('cardVoicePreview').hidden = true;
+                    } else {
+                        context.saved = result.name;
+                        message.textContent = result.selected ? `${result.name} is set for this character.`
+                            : context.review.remote ? `${result.name} is saved. Turning on Voice Lab sends speech text to your configured server.`
+                                : `${result.name} is saved. Turn on Voice Lab to use it for spoken replies across Altera.`;
+                        $('cardVoiceUse').hidden = $('cardVoiceTerms').hidden = true;
+                        $('cardVoiceEnable').hidden = result.selected;
+                    }
+                }
+            } catch (error) {
+                message.textContent = error.message || 'Voice Lab could not complete the request. Try again.';
+                if (action === 'use') {
+                    $('cardVoicePreview').hidden = false;
+                    $('cardVoiceUse').hidden = true;
+                }
+            } finally {
+                cardVoiceBusy(context, false);
+                if (action === 'preview' && !$('cardVoiceUse').hidden) {
+                    (context.review.cloned ? $('cardVoiceConsent') : $('cardVoiceUse')).focus();
+                } else if ($('cardVoicePreview').hidden && $('cardVoiceUse').hidden) {
+                    ($('cardVoiceEnable').hidden ? $('cardVoiceLeave') : $('cardVoiceEnable')).focus();
+                } else if (!$('cardVoicePreview').hidden) $('cardVoicePreview').focus();
             }
         }
 
@@ -914,7 +1093,7 @@
                 const answer = await call('/api/avatars/forge');
                 if (state.editing !== person) return;
                 if (!answer.available) {
-                    $('libraryStatus').textContent = "Altera cannot see NPC Forge's library folder. Set imagegen.npc_forge_library in config.yaml.";
+                    $('libraryStatus').textContent = "Start NPC Forge with character card support to see its library.";
                     return;
                 }
                 const usable = (answer.characters || []).filter(row => row.has_portrait);
@@ -1063,6 +1242,12 @@
             $('palSettingsTitle').textContent = `${person.name || (character ? 'Character' : written ? 'Companion' : 'Pal')} settings`;
             if ($('palSettingsNameRow')) $('palSettingsNameRow').hidden = character;      // a character keeps the card's name
             if ($('palSettingsCardRow')) $('palSettingsCardRow').hidden = !character;
+            if ($('palSettingsCardVoice')) $('palSettingsCardVoice').hidden = true;
+            if ($('palSettingsCardLicence')) {
+                $('palSettingsCardLicence').hidden = !person.licence;
+                $('palSettingsCardLicence').textContent = [person.ai_generated && 'AI-generated', person.licence]
+                    .filter(Boolean).join(' · ');
+            }
             if ($('palSettingsLorebookRow')) $('palSettingsLorebookRow').hidden = $('palSettingsBookBox').hidden = true;
             if ($('palSettingsFeaturesRow')) $('palSettingsFeaturesRow').hidden = written;  // a companion keeps all four
             if ($('palSettingsWrittenRow')) $('palSettingsWrittenRow').hidden = !written;
@@ -1102,6 +1287,8 @@
                     : written ? 'Written here, without NPC Forge.'
                     : (current.vibe_label ? `Vibe: ${current.vibe_label}` : '');
                 if (character) {
+                    state.settingsCardVoice = current.card_voice;
+                    if ($('palSettingsCardVoice')) $('palSettingsCardVoice').hidden = !current.card_voice?.name;
                     const instructions = $('palSettingsInstructions');
                     instructions.checked = current.card_instructions === true;
                     instructions.disabled = !current.has_instructions;                  // nothing to switch off
@@ -1184,6 +1371,13 @@
         on('homeContinueButton', 'click', () => state.data?.last && open(state.data.last));
         on('homeImportCard', 'click', () => chooseCard());
         on('homeCardFile', 'change', event => importCard(event?.target?.files?.[0] || $('homeCardFile').files?.[0]));
+        on('palSettingsCardVoice', 'click', () => openCardVoice(state.editing.id, state.settingsCardVoice, true));
+        on('cardVoicePreview', 'click', () => doCardVoice('preview'));
+        on('cardVoiceUse', 'click', () => doCardVoice('use'));
+        on('cardVoiceEnable', 'click', () => doCardVoice('enable'));
+        on('cardVoiceLeave', 'click', leaveCardVoice);
+        on('cardVoiceConsent', 'change', () => cardVoiceBusy(state.cardVoice, false));
+        on('cardVoiceDialog', 'cancel', event => { event.preventDefault(); leaveCardVoice(); });
         on('palForm', 'submit', makePal);
         on('palCancel', 'click', () => closeDialog('palDialog'));
         on('palSettingsForm', 'submit', saveSettings);
@@ -1229,8 +1423,28 @@
         on('companionDialog', 'cancel', event => { event?.preventDefault?.(); closeWriteCompanion(); });
 
         const loaded = load();
+        if ($('homeInbox')) {
+            loadInbox();
+            window.addEventListener('focus', () => loadInbox());
+            window.setInterval(() => { if (!doc.hidden) loadInbox(); }, 10000);
+        }
         // The first run ends here with "make a pal" as the obvious next step; the sidebar can also ask for "write a companion".
-        const make = new URLSearchParams(search()).get('make');
+        const params = new URLSearchParams(search());
+        const make = params.get('make');
+        const incoming = params.get('cardVoice');
+        if (incoming && $('cardVoiceDialog')) {
+            loaded.then(async () => {
+                try {
+                    const person = await call(`/api/characters/${encodeURIComponent(incoming)}`);
+                    if (person.card_voice?.name) openCardVoice(person.id, person.card_voice);
+                } catch (error) {
+                    status(error.message || 'Could not read the card voice. Open the character’s settings to try again.');
+                }
+                params.delete('cardVoice');
+                const query = params.toString();
+                window.history?.replaceState(null, '', query ? `/home?${query}` : '/home');
+            });
+        }
         if (make === 'pal' || make === 'companion') {
             loaded.then(() => {
                 if (state.busy) return;

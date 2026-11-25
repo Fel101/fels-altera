@@ -22,10 +22,12 @@ How a card is used:
 """
 import re
 import secrets
+import shutil
+from hashlib import sha256
 from pathlib import Path
 
 from core import charcard, safety
-from core.avatars import FEATURES, _now, _write_json, valid_id
+from core.avatars import FEATURES, AvatarError, _now, _write_json, card_from_npc, kind_of, valid_id
 from core.notes import estimate_tokens
 
 EXAMPLE_TOKENS = 600                       # default budget for example dialogue (config: characters.example_tokens)
@@ -74,50 +76,151 @@ def _new_id(store, name) -> str:
     raise CharacterError("Could not choose a folder for the character. Try again.", 500)
 
 
-def import_card(store, filename: str, data: bytes, checker=None) -> dict:
-    """Read a .png or .json card and add the character. Returns its public record."""
-    name = (filename or "").lower()
+def read_package(filename, data, *, include_voice=True):
+    if len(data) > charcard.file_limit(filename):
+        raise CharacterError(f"The card is larger than {charcard.file_limit(filename) // 1048576} MB.", 413)
     try:
-        if name.endswith(".png") or data.startswith(charcard.PNG_SIGNATURE):
-            card, image = charcard.parse_png(data)
-            extension = ".png"
-        elif name.endswith(".json"):
-            card, image = charcard.parse_json(data), None
-            extension = ".json"
-        else:
-            raise CharacterError("Choose a character card: a .png with a card in it, or a .json card.")
+        package = charcard.read_card(filename, data, include_voice=include_voice)
     except charcard.CardError as error:
         raise CharacterError(str(error)) from None
-    problem = _problem(card)
+    problem = _problem(package.card)
     if problem:
         raise CharacterError(problem)
-    check = {"ok": None, "apparent_age": None, "model": None, "error": None}
+    if package.sheet is not None:
+        sheet_fields(package)
+    return package
+
+
+def sheet_fields(package, name=None, age=None):
+    sheet = package.sheet
+    if not sheet:
+        raise CharacterError("This card has no character sheet. Export a CHARX card from NPC Forge.")
+    if sheet.get("setting") == "models" or sheet.get("source_photo"):
+        raise CharacterError("Choose a character from a core NPC Forge setting.")
+    profile, appearance = sheet.get("profile"), sheet.get("appearance") or {}
+    if (not isinstance(profile, dict) or not isinstance(appearance, dict)
+            or any(type(sheet[key]) is not str for key in ("setting", "style") if key in sheet)
+            or any(type(profile[key]) is not list or any(type(item) is not str for item in profile[key])
+                   for key in ("personality", "hobbies") if key in profile)):
+        raise CharacterError("The card has an invalid character sheet. Export a new copy.")
+    try:
+        original = card_from_npc(sheet, name=package.card["name"])
+        problem = safety.card_problem(original)
+        fields = card_from_npc(sheet, name=name or package.card["name"], age=age)
+        problem = problem or safety.card_problem(fields)
+    except (AvatarError, TypeError, ValueError, AttributeError, OverflowError):
+        raise CharacterError("The card has an invalid character sheet. Export a new copy.") from None
+    if problem:
+        raise CharacterError(problem)
+    return fields
+
+
+_LICENCES = {"commercial_ok": "Commercial use OK", "commercial_conditions": "Commercial use with conditions",
+             "not_cleared": "Commercial use unclear", "non_commercial": "Non-commercial use only"}
+
+
+def suite_details(package):
+    fels = package.card.get("fels")
+    if fels is None:
+        return {}
+    rating = fels.get("licence", {}).get("rating")
+    return {"ai_generated": fels["ai_generated"], "licence": _LICENCES.get(rating, "Commercial use unclear")
+            if isinstance(rating, str) else "Commercial use unclear"}
+
+
+def voice_offer(package):
+    from core.voicelab import valid_name
+    voice = package.card.get("fels", {}).get("voice")
+    if not voice or not valid_name(voice.get("name")) or not valid_name(voice.get("model")):
+        return {}
+    return {"name": voice["name"], "model": voice["model"],
+            "preset": voice["preset"] if valid_name(voice.get("preset")) else "",
+            "archive": package.voice_file is not None, "cloned": voice.get("cloned_from_person") is True}
+
+
+def import_card(store, filename: str, data: bytes, checker=None, *, living=None, package=None, inbox_key=None) -> dict:
+    """Save an imported character and its original locally."""
+    package = package or read_package(filename, data)
+    card = package.card
+    fields = sheet_fields(package) if package.sheet is not None else {}
+    avatar_id = _new_id(store, card["name"])
+    record = {
+        "id": avatar_id, "name": card["name"], "kind": "character",
+        "card": {**fields, "traits": fields.get("personality", []), "kind": "character", "name": card["name"],
+                 **{f: card[f] for f in CARD_FIELDS}, "alternate_greetings": card["alternate_greetings"]},
+        "creator_notes": card["creator_notes"], "creator": card["creator"], "tags": card["tags"],
+        "source": {"type": "character", "file": avatar_id + package.extension, "spec": card["spec"],
+                   "version": card["character_version"], **({"inbox_key": inbox_key} if inbox_key else {})},
+        "voice": "", "features": dict.fromkeys(FEATURES, True), "card_instructions": True,
+        "book": card["book"], "lorebook": True, "card_voice": voice_offer(package),
+    }
+    return _save_card(store, record, package, data, checker, living)
+
+
+def import_forge_card(store, npc_id, data, *, checker=None, living=None, name=None, age=None):
+    package = read_package(npc_id + ".charx", data, include_voice=False)
+    if not package.portrait:
+        raise CharacterError("Make a portrait for this character in NPC Forge and try again.")
+    fields = sheet_fields(package, name=name, age=age)
+    old = store.get(npc_id) or {}
+    record = {**old, "id": npc_id, "name": fields["name"], "kind": kind_of(old), "card": fields,
+              "source": {"type": "npc-forge-card", "id": npc_id, "file": npc_id + ".charx"}}
+    return _save_card(store, record, package, data, checker, living)
+
+
+def import_from_forge(services, npc_id, *, name=None, age=None):
+    from core import forge
+    store = services.avatars
+    if not valid_id(npc_id):
+        raise CharacterError("Choose a character from NPC Forge's library.")
+    mode = store.forge_mode()
+    if mode == "cards":
+        return import_forge_card(store, npc_id, store.forge_client().card(npc_id), checker=services.checker,
+                                 living=services.living, name=name, age=age)
+    if mode != "legacy":
+        raise forge.ForgeError("Start an up-to-date NPC Forge to fetch the character card.")
+    record = store.import_from_forge(npc_id, name=name, age=age, checker=services.checker)
+    services.living.sync_async(record["id"])
+    return record
+
+
+def _save_card(store, record, package, data, checker, living):
+    avatar_id = record["id"]
+    image = package.portrait
+    check = {}
     if image is not None and checker is not None:
         check = checker.check(image)
         if check.get("ok") is False:
             raise CharacterError(f"The card's picture looks younger than {safety.MIN_APPARENT_AGE} "
                                  f"(estimated {check.get('apparent_age')}), so this character cannot be imported.")
-    avatar_id = _new_id(store, card["name"])
+    body = package.body
+    if body is not None and checker is not None and check.get("ok") is not None and checker.check(body).get("ok") is False:
+        body = None
     folder = store.root / avatar_id
-    folder.mkdir(parents=True)
+    fresh = not folder.exists()
+    folder.mkdir(parents=True, exist_ok=True)
     originals = originals_dir(store)
-    originals.mkdir(parents=True, exist_ok=True)
-    (originals / (avatar_id + extension)).write_bytes(data)              # the file exactly as it came
-    if image is not None:
-        (folder / "portrait.png").write_bytes(image)
-    record = {
-        "id": avatar_id, "name": card["name"], "kind": "character",
-        "card": {"kind": "character", "name": card["name"], **{f: card[f] for f in CARD_FIELDS},
-                 "alternate_greetings": card["alternate_greetings"]},
-        "creator_notes": card["creator_notes"], "creator": card["creator"], "tags": card["tags"],
-        "source": {"type": "character", "file": avatar_id + extension, "spec": card["spec"],
-                   "version": card["character_version"]},
-        "has_body": False,
-        "age_check": {"ok": check.get("ok"), "apparent_age": check.get("apparent_age"), "model": check.get("model")},
-        "voice": "", "features": dict.fromkeys(FEATURES, True), "card_instructions": True, "imported": _now(),
-        "book": card["book"], "lorebook": True,
-    }
-    _write_json(folder / "avatar.json", record)
+    original = originals / (avatar_id + package.extension)
+    try:
+        originals.mkdir(parents=True, exist_ok=True)
+        if image is not None:
+            (folder / "portrait.png").write_bytes(image)
+        if body is not None:
+            (folder / "body.png").write_bytes(body)
+        else:
+            (folder / "body.png").unlink(missing_ok=True)
+        if living is not None and image is not None:
+            living.forget(avatar_id)
+            living.import_frames(avatar_id, package, {sha256(image).hexdigest(): check})
+        original.write_bytes(data)
+        record.update(imported=_now(), has_body=body is not None, **suite_details(package),
+                      age_check={k: check.get(k) for k in ("ok", "apparent_age", "model")})
+        _write_json(folder / "avatar.json", record)
+    except Exception:
+        if fresh:
+            original.unlink(missing_ok=True)
+            shutil.rmtree(folder)
+        raise
     if store.active_id() is None:
         store.activate(avatar_id)
     return store.public(record)
@@ -127,7 +230,7 @@ def delete_original(store, avatar_id) -> None:
     """Remove the saved card file with the character (Remove means for good)."""
     if not valid_id(avatar_id):
         return
-    for extension in (".png", ".json"):
+    for extension in (".png", ".json", ".charx"):
         try:
             (originals_dir(store) / (avatar_id + extension)).unlink()
         except FileNotFoundError:
@@ -148,6 +251,8 @@ def settings(store, avatar_id) -> dict:
     book = book_of(store, record) or {}
     entries = book.get("entries") or []
     return {"id": avatar_id, "name": record.get("name"), "voice": record.get("voice") or "", "features": features_of(record),
+            "licence": record.get("licence"), "ai_generated": record.get("ai_generated") is True,
+            "card_voice": record.get("card_voice") or {},
             "card_instructions": record.get("card_instructions") is not False,
             "lorebook": lorebook_on(record),
             "book": {"name": book.get("name") or "", "entries": [
@@ -251,6 +356,12 @@ def persona(card: dict, record: dict, config=None) -> str:
         text = render(card.get(field) or "", name, user).strip()
         if text:
             parts.append(f"## {title}\n{text}")
+    for label, value in (("Occupation", card.get("occupation")), ("Background", card.get("bio")),
+                         ("Traits", ", ".join(card.get("traits") or ())), ("Speech", card.get("speech")),
+                         ("Manner", card.get("demeanor")), ("Quirk", card.get("quirk")), ("Goal", card.get("goal")),
+                         ("Pet peeve", card.get("peeve")), ("Hobbies", ", ".join(card.get("hobbies") or ()))):
+        if value:
+            parts.append(f"{label}: {render(value, name, user)}")
     shown = examples(card, name, user, example_budget(config))
     if shown:
         parts.append("## How You Talk (example dialogue, not part of this conversation)\n" + shown)

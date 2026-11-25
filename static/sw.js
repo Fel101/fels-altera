@@ -93,7 +93,8 @@
 // v111: suite GPU status, reply waiting, and NPC Forge connection details.
 // v112: Meet someone new uses Forge's Modern life setting and offers a gender choice.
 // v113: Voice Lab discovery, per-pal voice licences and speech availability.
-const CACHE_VERSION = 'v113';
+// v114: character card inbox, card voice review, and Forge card portraits.
+const CACHE_VERSION = 'v114';
 const STATIC_CACHE = `altera-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `altera-dynamic-${CACHE_VERSION}`;
 

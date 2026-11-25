@@ -24,6 +24,12 @@
 
         <p id="homeStatus" class="home-status" role="status" aria-live="polite">Loading people…</p>
 
+        <section id="homeInbox" class="home-inbox" aria-labelledby="homeInboxTitle" hidden>
+            <h2 id="homeInboxTitle"></h2>
+            <p id="homeInboxStatus" class="home-muted" role="status"></p>
+            <ul id="homeInboxCards"></ul>
+        </section>
+
         <section id="homeContinue" class="home-continue" aria-labelledby="homeContinueName" hidden>
             <img id="homeContinuePortrait" class="home-portrait" alt="" hidden>
             <div class="home-continue-text">
@@ -64,7 +70,7 @@
             </div>
             <div id="homeKindNote" class="home-note" hidden></div>
             <div id="homeGallery" class="home-gallery"></div>
-            <input type="file" id="homeCardFile" accept=".png,.json,image/png,application/json" hidden>
+            <input type="file" id="homeCardFile" accept=".charx,.png,.json,image/png,application/json" hidden>
         </section>
     </main>
 
@@ -95,6 +101,8 @@
         <form id="palSettingsForm">
             <h2 id="palSettingsTitle">Pal settings</h2>
             <p id="palSettingsVibe" class="home-muted"></p>
+            <p id="palSettingsCardLicence" class="home-muted" hidden></p>
+            <button type="button" id="palSettingsCardVoice" hidden>Review card voice</button>
             <label class="home-field" id="palSettingsNameRow">Name<input id="palSettingsName" maxlength="40" autocomplete="off"></label>
             <details class="home-field home-persona" id="palSettingsPersonaRow" hidden>
                 <summary>Who they are</summary>
@@ -280,6 +288,23 @@
         </form>
     </dialog>
     <script src="{{ url_for('static', filename='js/checkin-notices.js') }}"></script>
+    <dialog id="cardVoiceDialog" class="home-dialog" aria-labelledby="cardVoiceTitle">
+        <h2 id="cardVoiceTitle">Character card voice</h2>
+        <p id="cardVoiceStatus" class="home-status" role="status"></p>
+        <div id="cardVoiceTerms" class="home-card-terms" hidden>
+            <p id="cardVoiceOrigin"></p>
+            <p id="cardVoiceAllowed"></p>
+            <label class="home-check" id="cardVoiceConsentRow" hidden>
+                <input type="checkbox" id="cardVoiceConsent"><span>I have permission to use this recording under these terms.</span>
+            </label>
+        </div>
+        <div class="home-dialog-actions home-wrap-actions">
+            <button type="button" id="cardVoiceLeave">Open chat</button>
+            <button type="button" id="cardVoicePreview" class="home-primary">Preview voice</button>
+            <button type="button" id="cardVoiceUse" class="home-primary" hidden>Use this voice</button>
+            <button type="button" id="cardVoiceEnable" class="home-primary" hidden>Turn on Voice Lab speech</button>
+        </div>
+    </dialog>
     <script src="{{ url_for('static', filename='js/home.js') }}"></script>
 </body>
 </html>

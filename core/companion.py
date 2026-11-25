@@ -10,7 +10,7 @@ from pathlib import Path
 
 from core.paths import DEFAULT_ROOT
 
-from core import age_check, avatars, imagegen, living, photos
+from core import age_check, avatars, forge, imagegen, living, photos
 
 LOGGER = logging.getLogger(__name__)
 ROOT = DEFAULT_ROOT
@@ -64,7 +64,8 @@ def build_services(config: dict | None = None, root=None) -> Services:
     root = Path(root or ROOT)
     cfg = config.get("imagegen") or {}
     backend_for = imagegen.backend_factory(config, root)
-    store = avatars.AvatarStore(root / "data" / "avatars", cfg.get("npc_forge_library") or None)
+    store = avatars.AvatarStore(root / "data" / "avatars", cfg.get("npc_forge_library") or None,
+                                forge_client=lambda: forge.ForgeClient(config))
     checker = age_check.AgeCheck(config)
     def make_photos():
         return photos.PhotoService(root / "data" / "photos", store, backend_for, checker, config)

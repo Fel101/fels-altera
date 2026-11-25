@@ -5,6 +5,7 @@ This is an explicit integration, not the public-URL workspace fetch surface.
 """
 import http.client
 import math
+import re
 import urllib.error
 import urllib.request
 from urllib.parse import urlsplit
@@ -29,6 +30,8 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 JSON_ENDPOINTS = {'/api/info', '/api/health', '/api/voices'}
 AUDIO_ENDPOINTS = {'/api/speak', '/v1/audio/speech'}
+ARCHIVE_ENDPOINTS = {'/api/portable/preview', '/api/portable/import'}
+IDENTITY_UPDATE = re.compile(r'/api/identities/[a-f0-9]{32}/update')
 
 
 def is_loopback(url):
@@ -38,7 +41,7 @@ def is_loopback(url):
         return False
 
 
-def read(base_url, endpoint, *, timeout, limit, data=None):
+def read(base_url, endpoint, *, timeout, limit, data=None, reference_metadata=None):
     """Read at most limit bytes; refuse redirects, errors and oversized output.
 
 HTTP(S) base paths are supported. Credentials, query and fragment components
@@ -61,15 +64,21 @@ confine what that provider keeps.
             raise ValueError()
     except ValueError:
         raise VoiceHTTPError('Invalid configured voice-service URL.') from None
-    if endpoint not in JSON_ENDPOINTS | AUDIO_ENDPOINTS:
+    archive = endpoint in ARCHIVE_ENDPOINTS
+    if not (archive or endpoint in JSON_ENDPOINTS | AUDIO_ENDPOINTS or IDENTITY_UPDATE.fullmatch(endpoint)):
         raise VoiceHTTPError('Invalid voice-service endpoint.')
-    request = urllib.request.Request(base_url.rstrip('/') + endpoint, data=data,
-        headers={'Accept': 'application/json' if endpoint in JSON_ENDPOINTS else 'audio/wav',
-                 **({'Content-Type': 'application/json'} if data is not None else {})})
+    headers = {'Accept': 'audio/wav' if endpoint in AUDIO_ENDPOINTS else 'application/json'}
+    if data is not None:
+        headers['Content-Type'] = 'application/zip' if archive else 'application/json'
+    if reference_metadata is not None:
+        if endpoint != '/api/portable/import':
+            raise VoiceHTTPError('Invalid voice-service metadata.')
+        headers['X-Reference-Metadata'] = reference_metadata
+    request = urllib.request.Request(base_url.rstrip('/') + endpoint, data=data, headers=headers)
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
     try:
         with opener.open(request, timeout=timeout) as response:
-            if response.status != 200:
+            if response.status != (201 if endpoint == '/api/portable/import' else 200):
                 raise VoiceHTTPError(status=response.status)
             length = response.headers.get('Content-Length')
             if length is not None:

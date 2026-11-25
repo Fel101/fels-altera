@@ -195,7 +195,7 @@ one that supports image input on the selected provider. To use a different model
 |-----|---------|---------|
 | `enabled` | false in the portable starter; true in code | Enable or disable picture generation. |
 | `comfy_url` | `http://127.0.0.1:8188` | Your ComfyUI. |
-| `npc_forge_library` | NPC Forge's `library` folder | Where avatars are imported from (read-only). |
+| `npc_forge_library` | NPC Forge 1.0's `library` folder | Read-only compatibility for API 44. Current Forge uses its character card API. |
 | `quality` | `standard` | `draft` 512x704 / `standard` 768x1024 / `high` 1024x1344. |
 | `cfg` | 4.0 | Mage-Flow-Edit guidance. |
 | `use_body_reference` | false | Also give the model the avatar's full-body view. See below. |

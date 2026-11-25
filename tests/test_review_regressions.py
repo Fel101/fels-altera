@@ -690,7 +690,7 @@ def test_requirements_declare_every_directly_imported_package():
         "dotenv": "python-dotenv", "chromadb": "chromadb", "faster_whisper": "faster-whisper",
         "edge_tts": "edge-tts", "requests": "requests", "urllib3": "urllib3", "bs4": "beautifulsoup4",
         "waitress": "waitress", "av": "av", "numpy": "numpy", "onnxruntime": "onnxruntime", "httpx": "httpx",
-        "nacl": "pynacl", "tokenizers": "tokenizers",
+        "nacl": "pynacl", "tokenizers": "tokenizers", "itsdangerous": "itsdangerous",
     }
     declared = set()
     for line in (here / "requirements.txt").read_text("utf-8").splitlines():

@@ -34,7 +34,8 @@ const Living = {
     observer: null,
 };
 const livingImages = new Set(), livingExtraTimers = new Set(), livingSleeps = new Set();
-const LIVING_FRAMES = new Set(['blink', 'talking', 'happy', 'laughing', 'sad', 'surprised', 'smug', 'embarrassed', 'thinking', 'flirty']);
+const LIVING_FRAMES = new Set(['blink', 'talking', 'happy', 'laughing', 'sad', 'surprised', 'smug', 'embarrassed', 'thinking', 'flirty',
+    'neutral', 'angry', 'scared', 'disgusted', 'tired']);
 
 const MOOD_HOLD_MS = 7000;      // how long her face keeps an expression after she answers
 

@@ -91,6 +91,8 @@ These are the only things that send anything out, and each one is a choice you m
   the starter setting is the local Kokoro voice. The cloud voice is never used while adult mode is on.
 - **Speech on a configured server** receives the text it speaks if you explicitly point Voice Lab or Kokoro at another
   computer. Automatically discovered Voice Lab addresses use this PC. Voice Lab speech is opt-in.
+- **Character cards** sent from NPC Forge wait in the local Fel's Studio inbox. When you preview or import an embedded
+  voice file, Altera sends that file to Voice Lab on this PC. The speaker's stated use terms appear before a cloned voice is imported.
 - **Web search and reading web pages** are off at first. When switched on, the search terms and addresses go to those
   sites.
 - **Pictures** go to the ComfyUI and vision-model servers you set up. Those are usually local, but not necessarily.

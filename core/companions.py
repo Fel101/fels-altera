@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 from core import companion
+from core.avatars import forge_id
 from core.datastore import get_datastore
 
 LOGGER = logging.getLogger(__name__)
@@ -103,8 +104,9 @@ def open_companion(avatar_id, *, activate=True) -> dict:
         services.photos.sync_premade_async(avatar_id)
     except Exception:
         LOGGER.exception("Could not start the picture sync")
-    try:                                                   # and so does her living portrait, if NPC Forge has made one
-        services.living.sync_async(avatar_id)
+    try:
+        if forge_id(record) and services.avatars.forge_available():
+            services.living.sync_async(avatar_id)
     except Exception:
         LOGGER.exception("Could not start the living-portrait sync")
     return summary(record, session_id)

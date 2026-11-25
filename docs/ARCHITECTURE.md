@@ -57,6 +57,7 @@ flowchart TD
 | Scoped source tracking, corrections and recall boundaries | `core/knowledge.py`, `routes/knowledge.py` |
 | Companions and notebook compaction | `core/companions.py`, `notes.py`, `routes/companions.py` |
 | Avatar/image integration | `core/companion.py`, `avatars.py`, `photos.py`, `forge.py`, `imagegen.py`, `living.py`, `selfview.py` |
+| Character cards and suite handoff | `core/charcard.py`, `characters.py`, `card_inbox.py`, `card_voice.py`, `routes/companions.py` |
 | Content gates and adult-mode state | `core/safety.py`, `adult.py`, `age_check.py`, `photo_tags.py` |
 | Speech and voice process | `core/tts.py`, `stt.py`, `voice_layer.py`, `voice_service.py` |
 | Direct bounded voice HTTP | `core/voice_http.py`, `tts.py`, `voice_service.py`; [startup and transport](VOICE_TRANSPORT.md) |

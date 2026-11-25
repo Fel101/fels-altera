@@ -31,8 +31,12 @@ from core import safety
 LOGGER = logging.getLogger(__name__)
 FRAME_RE = re.compile(r"^[a-z][a-z_]{1,23}$")
 # The frames the page knows what to do with. Anything else NPC Forge adds later is ignored until the page learns it.
-FRAMES = ("blink", "talking", "happy", "laughing", "sad", "surprised", "smug", "embarrassed", "thinking", "flirty")
+FRAMES = ("blink", "talking", "happy", "laughing", "sad", "surprised", "smug", "embarrassed", "thinking", "flirty",
+          "neutral", "angry", "scared", "disgusted", "tired")
 KIDS_KEPT_BACK = frozenset({"flirty"})
+EMOTIONS = {"joy": "happy", "sadness": "sad", "anger": "angry", "surprise": "surprised", "fear": "scared",
+            "disgust": "disgusted", "amusement": "laughing", "pride": "smug", "embarrassment": "embarrassed",
+            "curiosity": "thinking"}
 
 
 def _now() -> str:
@@ -122,6 +126,47 @@ class LivingStore:
         return {"available": bool(frames), "frames": frames, "checked": checked, "refused": sorted(state.get("refused") or {}),
                 "reason": "" if frames else reason, "synced_at": state.get("synced_at"), "running": running}
 
+    def import_frames(self, avatar_id, package, checks=None):
+        """Copy expressions and the verified living frames from a card into Altera's own portrait store."""
+        pictures = {EMOTIONS.get(name, name): data for name, data in package.expressions.items()}
+        pictures.update(package.frames)
+        portrait_sha = self._portrait_sha(avatar_id)
+        if not pictures or not portrait_sha:
+            return
+        checks = {} if checks is None else checks
+        d = self._dir(avatar_id)
+        d.mkdir(parents=True, exist_ok=True)
+        previous = self._state(avatar_id)
+        frames, refused = {}, {}
+        unavailable = None
+        for frame in FRAMES:
+            if frame not in pictures:
+                continue
+            png = pictures[frame]
+            sig = _sha(png)
+            path = d / f"{frame}.png"
+            old = previous.get("frames", {}).get(frame) or {}
+            refused_before = previous.get("refused", {}).get(frame) or {}
+            if old.get("sig") == sig and old.get("age_checked") and path.is_file():
+                frames[frame] = old
+                continue
+            if refused_before.get("sig") == sig:
+                refused[frame] = refused_before
+                continue
+            check = checks.get(sig)
+            if check is None:
+                check = unavailable or (self.checker.check(png) if self.checker else {})
+                checks[sig] = check
+            if check.get("ok") is False:
+                refused[frame] = {"sig": sig, "reason": "The frame did not pass the portrait age check."}
+                path.unlink(missing_ok=True)
+                continue
+            if check.get("ok") is None:
+                unavailable = check
+            path.write_bytes(png)
+            frames[frame] = {"sig": sig, "age_checked": check.get("ok") is True, "apparent_age": check.get("apparent_age")}
+        self._save(avatar_id, {"portrait_sha256": portrait_sha, "frames": frames, "refused": refused, "synced_at": _now()})
+
     # ---- keeping in step with NPC Forge ----------------------------------------------------------------------------------
     def sync(self, avatar_id) -> dict:
         """Copy NPC Forge's living portrait of this avatar: new or redone frames are age-checked and copied, frames that are
@@ -132,6 +177,25 @@ class LivingStore:
             return result
         from core.avatars import forge_id, kind_of
         npc_id = forge_id(record)
+        if npc_id and self.avatars.forge_mode() == "cards":
+            from core.characters import read_package
+            package = read_package(npc_id + ".charx", self.avatars.forge_client().card(npc_id), include_voice=False)
+            if package.portrait is None or _sha(package.portrait) != self._portrait_sha(avatar_id):
+                return result
+            self.import_frames(avatar_id, package)
+            result["imported"] = len(self.status(avatar_id)["frames"])
+            return result
+        source = record.get("source") or {}
+        if not npc_id and source.get("type") == "character":
+            if source.get("file") == avatar_id + ".charx":
+                from core import charcard, characters
+                path = characters.originals_dir(self.avatars) / source["file"]
+                with path.open("rb") as saved:
+                    package = charcard.parse_charx(saved.read(charcard.MAX_CHARX_BYTES + 1), include_voice=False)
+                if package.portrait and _sha(package.portrait) == self._portrait_sha(avatar_id):
+                    self.import_frames(avatar_id, package)
+                    result["imported"] = len(self.status(avatar_id)["frames"])
+            return result
         state = self._state(avatar_id)
         have = state.get("frames") if isinstance(state.get("frames"), dict) else {}
         refused = state.get("refused") if isinstance(state.get("refused"), dict) else {}

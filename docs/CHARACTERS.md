@@ -1,29 +1,40 @@
 # Characters
 
-A **character** is someone from a character card: the PNG (or `.json`) files that character-chat apps share, with the
+A **character** is someone from a CHARX, PNG or JSON character card that character-chat apps share, with the
 character written inside. Altera reads Character Card V2 (`chara_card_v2`), and V1 and V3 cards too. A character uses the
 same chat page, speech and controls as everyone else.
 
 ## Importing a card
 
 On **Home** (`/home`), choose **Import a character card** (on the Characters tile's empty note, or **Import a card**
-beside the Characters gallery) and pick the file. The chat opens with the card's first message.
+beside the Characters gallery) and pick the file. When NPC Forge sends a card, Home shows it waiting with **Import** and
+**Dismiss**. A failed card stays in the inbox so you can read the reason or dismiss it. Imported and dismissed files go
+to the Windows Recycle Bin or are deleted on other systems. The chat opens with the card's first message.
 
+- **CHARX cards** contain a V3 card and its embedded assets. Altera copies supported PNG assets, including the main icon,
+  the full-body sprite, expressions and any living portrait that matches the portrait's SHA-256. It uses NPC Forge's
+  sheet for details such as age, occupation, traits and manner of speaking. Home shows the card's licence rating and
+  AI-generated label when supplied.
 - **PNG cards** carry the card in a text chunk (`chara` for V1/V2, `ccv3` for V3, `tavernCardV2` is also read; `tEXt`,
   `zTXt` and `iTXt` chunks all work). When a PNG has more than one, the V3 card wins. The picture becomes the
   character's portrait, with the card text stripped out of it.
 - **JSON cards** are the card on its own. The portrait is the character's initial on a colour chosen from its id.
-- Either kind can get a portrait from NPC Forge later, redrawn from the card's picture or painted from a description,
+- A character can get a portrait from NPC Forge later, redrawn from the card's picture or painted from a description,
   in the character's settings on Home: see [Portraits](PORTRAITS.md). The card's own picture is kept to go back to.
-- A card is refused, with the reason, when it is not a PNG or JSON card, has no name, has none of a description,
-  personality or first message, is damaged or too
-  large (20 MB file, 2 MB card, 8192 px a side), breaks the same hard content rules as every avatar card (every text
-  field is checked, the creator's notes included), or its picture looks under age to the age check.
+- CHARX limits are 100 MB for the archive and for its expanded contents, 500 members, and 20 MB per member. PNG cards
+  are limited to 20 MB, card JSON to 2 MB, and images to 8192 pixels on each side. Altera refuses a damaged card, a card
+  with no name or character text, a card that breaks the hard content rules, or a portrait that the age check reads as under 18.
 
-Nothing is read from the card file again after import: the file is saved exactly as it came in
-`data/characters/<id>.png` (or `.json`) so you keep the original, and `data/avatars/<id>/avatar.json` (`"kind":
-"character"`) is what Altera reads. Because both live under `data/`, backups and restore cover them; **Remove** deletes
-both.
+Altera saves the original in `data/characters/` and the local character record and pictures under `data/avatars/`.
+Backups cover both locations. **Remove** deletes them.
+
+## Card voices
+
+Cards can name a preset voice or include a portable voice file. Check the preset in Voice Lab, then choose **Use this voice**
+if it is ready. For a file, choose **Preview voice file** to check it with Voice Lab on this computer, then choose
+**Import and use this voice**. A cloned recording shows its stated source and allowed use and asks you to confirm permission.
+You can open the chat without the card voice and return to **Review card voice** in the character's settings. If Voice Lab speech
+is off in Altera, turn it on to hear the new voice.
 
 ## How a card is used
 

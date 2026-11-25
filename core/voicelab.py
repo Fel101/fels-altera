@@ -1,10 +1,13 @@
 """Voice Lab's catalogue and OpenAI-style WAV endpoint. Discovery sends no speech text."""
 
+import base64
 import io
 import json
 import os
+import re
 import wave
 from dataclasses import dataclass
+from hashlib import sha256
 
 from core import fels_suite, voice_http
 
@@ -88,6 +91,7 @@ def catalogue(given=''):
         reason = licence.get('reason')
         label = _LICENCES.get(rating, 'Unclear') if isinstance(rating, str) else 'Unclear'
         voices.setdefault(name, {'id': name, 'label': name, 'kind': 'cast' if row.get('kind') == 'cast' else 'preset',
+                                 'voice_id': row.get('voice_id'), 'identity_id': row.get('identity_id'),
                                  'model': row.get('model'), 'licence': {'label': label, 'reason': reason[:400] if isinstance(reason, str) else ''}})
     return Catalogue(url, library, sorted(voices.values(), key=lambda voice: voice['kind'] != 'cast'), notice)
 
@@ -113,6 +117,54 @@ def status(given=''):
     if found.notice:
         message = f'{found.notice} {message}'
     return {'ready': bool(count), 'count': count, 'remote': remote, 'message': message, 'notice': found.notice}
+
+
+def _portable_json(url, endpoint, data, *, metadata=None):
+    if not voice_http.is_loopback(url):
+        raise LabError('To preview or import a voice file, start Voice Lab on this computer and select its local address.')
+    try:
+        args = {'reference_metadata': metadata} if metadata is not None else {}
+        result = json.loads(voice_http.read(url, endpoint, data=data, timeout=20, limit=1024 * 1024, **args))
+        if isinstance(result, dict):
+            return result
+    except voice_http.VoiceHTTPUnavailable:
+        raise LabUnavailable('Voice Lab did not reply. Check its Cast and try again.') from None
+    except (ValueError, voice_http.VoiceHTTPError):
+        pass
+    raise LabError('Voice Lab could not process this voice file. Check it in Voice Lab or open the character without it.')
+
+
+def preview_persona(url, data):
+    archive = _portable_json(url, '/api/portable/preview', data).get('archive')
+    if isinstance(archive, dict) and archive.get('kind') == 'persona' and archive.get('archive_sha256') == sha256(data).hexdigest():
+        rows = archive.get('voices')
+        title = archive.get('title')
+        if valid_name(title) and isinstance(rows, list) and len(rows) == 1 and isinstance(rows[0], dict):
+            return title, rows[0]
+    raise LabError('This file does not contain one verified Voice Lab voice. Ask for a new voice file.')
+
+
+def import_persona(url, data):
+    metadata = base64.urlsafe_b64encode(json.dumps({'archive_sha256': sha256(data).hexdigest(), 'permission': True})
+                                        .encode('utf-8')).decode('ascii').rstrip('=')
+    result = _portable_json(url, '/api/portable/import', data, metadata=metadata).get('imported')
+    identity = result.get('identity') if isinstance(result, dict) and result.get('kind') == 'persona' else None
+    if isinstance(identity, dict) and _valid_identity(identity.get('id')):
+        return identity
+    raise LabError('Voice Lab did not confirm the import. Check its Cast before trying again.')
+
+
+def _valid_identity(value):
+    return isinstance(value, str) and bool(re.fullmatch(r'[a-f0-9]{32}', value))
+
+
+def approve_persona(url, identity, reference):
+    if not _valid_identity(identity) or (reference is not None and not _valid_identity(reference)):
+        raise LabError('Voice Lab did not return a valid voice. Review it in Cast.')
+    body = {'status': 'approved'}
+    if reference is not None:
+        body['reference_version_id'] = reference
+    _portable_json(url, f'/api/identities/{identity}/update', json.dumps(body).encode('utf-8'))
 
 
 def wav(url, voice, text, *, limit):

@@ -26,6 +26,9 @@ def setup(state):
             if self.endpoint == 'companion.create_shared_photo':
                 from core.shared_reference import MAX_BYTES
                 return ((MAX_BYTES + 2) // 3) * 4 + 8192
+            if self.endpoint == 'companions.import_character' and self.mimetype == 'multipart/form-data':
+                from core.charcard import MAX_CHARX_BYTES
+                return MAX_CHARX_BYTES + 64 * 1024
             return super().max_content_length
 
         def _get_file_stream(self, total_content_length, content_type, filename=None, content_length=None):

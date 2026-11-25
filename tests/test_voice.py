@@ -429,6 +429,7 @@ def test_the_service_is_started_with_the_right_arguments_and_only_once(voice, tm
             launched.append('closed')
             return True
     monkeypatch.setattr(voice_service, 'OwnedChildProcess', FakeOwner)
+    monkeypatch.setattr(voice_service, '_watch_gpu_voice', lambda *_: None)
     monkeypatch.setattr(voice_service, '_owner', None)
     monkeypatch.setattr(voice_service, '_owner_key', None)
     monkeypatch.setattr(voice_service, '_closing', False)

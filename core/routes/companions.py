@@ -7,7 +7,7 @@ refuses requests that come from another website, like the avatar routes do.
 import logging
 from urllib.parse import urlparse
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 
 from core import adult, avatars, companion, companions, forge, notes
 from core.constants import sanitized_error_response
@@ -52,7 +52,7 @@ def list_companions():
         rows = [row for row in rows if row.get("kids") is True]
         active = (lock.ensure_kids_active().get("avatar") or {}).get("id") if rows else None
     return jsonify({"companions": rows, "active": active,
-                    "forge_library": s.avatars.forge_available()})
+                    "forge_library": s.avatars.forge_library_available()})
 
 
 @bp.route("/api/companions/current", methods=["GET"])
@@ -80,7 +80,7 @@ def list_people():
     except companions.CompanionError as e:
         return jsonify({"error": str(e)}), e.status
     _recheck_portraits()
-    return jsonify({**data, "forge_library": companion.get_services().avatars.forge_available()}), 200, {"Cache-Control": "no-store"}
+    return jsonify({**data, "forge_library": companion.get_services().avatars.forge_library_available()}), 200, {"Cache-Control": "no-store"}
 
 
 def _replies_payload(avatar_id):
@@ -313,24 +313,68 @@ def set_kids_state():
 
 @bp.route("/api/characters/import", methods=["POST"])
 def import_character():
-    """multipart file: a .png card or a .json card -> the new character, opened."""
+    """Import a selected .charx, .png or .json file and open its character."""
     if _cross_site():
         return _forbidden()
     from core import charcard, characters
     upload = request.files.get("file")
     if upload is None:
         return jsonify({"error": "Choose a character card file to import."}), 400
-    data = upload.stream.read(charcard.MAX_FILE_BYTES + 1)
-    if len(data) > charcard.MAX_FILE_BYTES:
-        return jsonify({"error": "The card is larger than 20 MB."}), 413
+    filename = upload.filename or ""
+    data = upload.stream.read(charcard.file_limit(filename) + 1)
     services = companion.get_services()
     try:
-        made = characters.import_card(services.avatars, upload.filename or "", data, checker=services.checker)
-        return jsonify(companions.open_companion(made["id"])), 201
+        made = characters.import_card(services.avatars, filename, data, checker=services.checker, living=services.living)
+        return _open_card(services, made["id"])
     except characters.CharacterError as error:
         return jsonify({"error": str(error)}), error.status, {"Cache-Control": "no-store"}
     except companions.CompanionError as error:
         return jsonify({"error": str(error)}), error.status
+
+
+def _open_card(services, avatar_id, notice=""):
+    record = services.avatars.get(avatar_id)
+    return jsonify({**companions.open_companion(avatar_id), "card_id": avatar_id,
+                    "card_voice": record.get("card_voice") or {}, "inbox_notice": notice}), 201, {"Cache-Control": "no-store"}
+
+
+@bp.get("/api/characters/inbox")
+def card_inbox():
+    from core import card_inbox
+    return jsonify(cards=card_inbox.waiting()), 200, {"Cache-Control": "no-store"}
+
+
+@bp.route("/api/characters/inbox/<key>", methods=["POST", "DELETE"])
+def take_or_dismiss_card(key):
+    if _cross_site():
+        return _forbidden()
+    from core import card_inbox, characters
+    services = companion.get_services()
+    try:
+        if request.method == "DELETE":
+            card_inbox.dismiss(key)
+            return jsonify(ok=True)
+        made, notice = card_inbox.accept(services, key)
+        return _open_card(services, made["id"], notice)
+    except (characters.CharacterError, companions.CompanionError) as error:
+        return jsonify(error=str(error)), error.status, {"Cache-Control": "no-store"}
+
+
+@bp.post("/api/characters/<avatar_id>/card-voice")
+def character_card_voice(avatar_id):
+    if _cross_site():
+        return _forbidden()
+    from core import card_voice, characters, voicelab
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or data.get("action") not in ("preview", "use"):
+        return jsonify(error="Choose Preview or Use this voice."), 400
+    try:
+        result = card_voice.review(companion.get_services().avatars, avatar_id, data, current_app.secret_key)
+        return jsonify(result), 200, {"Cache-Control": "no-store"}
+    except characters.CharacterError as error:
+        return jsonify(error=str(error)), error.status, {"Cache-Control": "no-store"}
+    except voicelab.LabError as error:
+        return jsonify(error=str(error)), 409, {"Cache-Control": "no-store"}
 
 
 @bp.route("/api/characters/<avatar_id>", methods=["GET"])
@@ -472,14 +516,16 @@ def sync_pictures(avatar_id):
 @bp.route("/api/forge/status", methods=["GET"])
 def forge_status():
     s = companion.get_services()
-    return jsonify({**_forge().status(), "library": s.avatars.forge_available()})
+    info = _forge().status()
+    return jsonify({**info, "library": (info.get("api_version") or 0) >= forge.CARD_API or s.avatars.forge_available()})
 
 
 @bp.route("/api/forge/start", methods=["POST"])
 def forge_start():
     if _cross_site():
         return _forbidden()
-    return jsonify(forge.start(companion.get_services().config))
+    services = companion.get_services()
+    return jsonify(forge.start(services.config, legacy_launch=services.avatars.forge_mode() == "legacy"))
 
 
 @bp.route("/api/companions/make", methods=["POST"])
@@ -508,10 +554,13 @@ def make_someone_status(npc_id, job_id):
         return jsonify({"state": "error", "note": str(e)})
     if job["state"] != "done":
         return jsonify(job)
+    from core import characters
     try:
-        s.avatars.import_from_forge(npc_id, checker=s.checker)
-    except avatars.AvatarError as e:
+        characters.import_from_forge(s, npc_id)
+    except (avatars.AvatarError, characters.CharacterError) as e:
         return jsonify({"state": "rejected", "note": str(e)})
+    except forge.ForgeError as error:
+        return jsonify({"state": "error", "note": str(error)})
     except Exception:
         LOGGER.exception("Could not import the new character")
         return jsonify({"state": "error", "note": sanitized_error_response("internal_error", 500)[0]["error"]})

@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 
 from flask import Blueprint, Response, current_app, jsonify, request, send_file
 
-from core import adult, avatars, companion, companions, kids, living, photos
+from core import adult, avatars, companion, companions, forge, kids, living, photos
 from core.constants import api_error
 from core.profile import living_portrait_enabled, set_living_portrait
 from core.datastore import get_datastore
@@ -118,13 +118,24 @@ def list_avatars():
 @bp.route("/api/avatars/forge", methods=["GET"])
 def list_forge_characters():
     s = companion.get_services()
-    return jsonify({"available": s.avatars.forge_available(), "characters": s.avatars.list_forge()})
+    try:
+        return jsonify({"available": s.avatars.forge_library_available(), "characters": s.avatars.forge_choices()})
+    except forge.ForgeError as error:
+        return jsonify(error=str(error)), 503
 
 
 @bp.route("/api/forge/<npc_id>/thumb", methods=["GET"])
 def forge_thumb(npc_id):
-    path = companion.get_services().avatars.forge_file(npc_id, "thumb") or \
-        companion.get_services().avatars.forge_file(npc_id, "portrait")
+    from core import characters
+    store = companion.get_services().avatars
+    if store.forge_mode() == "cards":
+        try:
+            package = characters.read_package(npc_id + ".png", store.forge_client().card(npc_id, "png"))
+        except (characters.CharacterError, forge.ForgeError):
+            return api_error("not_found", 404)
+        return Response(package.portrait, mimetype="image/png",
+                        headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+    path = store.forge_file(npc_id, "thumb") or store.forge_file(npc_id, "portrait")
     if not path:
         return api_error("not_found", 404)
     return _image(path)
@@ -136,15 +147,17 @@ def import_avatar():
         return _forbidden()
     data = request.get_json(silent=True) or {}
     s = companion.get_services()
+    from core import characters
     try:
-        record = s.avatars.import_from_forge(data.get("npc_id"), name=(data.get("name") or "").strip() or None,
-                                             age=data.get("age"), checker=s.checker)
-    except avatars.AvatarError as e:
+        record = characters.import_from_forge(s, data.get("npc_id"), name=(data.get("name") or "").strip() or None,
+                                              age=data.get("age"))
+    except (avatars.AvatarError, characters.CharacterError) as e:
         return jsonify({"error": str(e)}), 422
+    except forge.ForgeError as error:
+        return jsonify(error=str(error)), 503
     except Exception:
         LOGGER.exception("Avatar import failed")
         return api_error("internal_error", 500)
-    s.living.sync_async(record["id"])                     # a new portrait may have a living portrait to go with it
     return jsonify(record)
 
 

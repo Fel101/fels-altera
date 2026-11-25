@@ -234,13 +234,38 @@ def card_from_written(*, name, age, gender="", bio="", hobbies=(), speech="", de
 
 
 class AvatarStore:
-    def __init__(self, root, forge_library=None):
+    def __init__(self, root, forge_library=None, *, forge_client=None):
         self.root = Path(root)
         self.forge = Path(forge_library) if forge_library else None
+        self.forge_client = forge_client
+        self._forge_mode = ("", 0)
+
+    def forge_mode(self):
+        """Remember the version briefly. An unavailable or newer Forge never enables direct library access."""
+        if self.forge_client is None:
+            return "legacy"
+        mode, checked = self._forge_mode
+        now = time.monotonic()
+        if now - checked >= 5 or not checked:
+            from core.forge import ForgeError
+            try:
+                mode = self.forge_client().library_mode()
+            except ForgeError:
+                mode = ""
+            self._forge_mode = (mode, now)
+        return mode
 
     # ---- NPC Forge (read-only) ----------------------------------------------
     def forge_available(self) -> bool:
-        return bool(self.forge and self.forge.is_dir())
+        return bool(self.forge and self.forge_mode() == "legacy" and self.forge.is_dir())
+
+    def forge_library_available(self):
+        return self.forge_mode() == "cards" or self.forge_available()
+
+    def forge_choices(self):
+        if self.forge_mode() != "cards":
+            return self.list_forge()
+        return [{**row, "imported": self.get(row["id"]) is not None} for row in self.forge_client().card_library()]
 
     def _forge_dir(self, npc_id) -> Path | None:
         if not self.forge_available() or not valid_id(npc_id):
@@ -416,7 +441,7 @@ class AvatarStore:
         if source.get("type") == "pal":                    # a pal is refreshed from its own pal.yaml, never from NPC Forge
             from core import pals
             return pals.refresh(self, avatar_id)
-        d = self._forge_dir(source.get("id"))
+        d = self._forge_dir(source.get("id")) if source.get("type") == "npc-forge" else None
         if not record or not d:
             return False
         npc = _read_json(d / "npc.json") or {}
@@ -555,7 +580,9 @@ class AvatarStore:
             # who she is, for the portrait panel
             "occupation": card.get("occupation") or "",
             # a list of traits; a character card's personality is prose and stays out of the chips
-            "traits": card.get("personality") if isinstance(card.get("personality"), list) else [],
+            "traits": card.get("personality") if isinstance(card.get("personality"), list) else card.get("traits") or [],
+            **({"licence": record["licence"], "ai_generated": record.get("ai_generated") is True}
+               if record.get("licence") else {}),
             "bio": card.get("bio") or "", "speech": card.get("speech") or "", "demeanor": card.get("demeanor") or "",
             "hobbies": card.get("hobbies") or [], "quirk": card.get("quirk") or "", "vibe": card.get("vibe") or "",
         }

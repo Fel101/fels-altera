@@ -289,8 +289,8 @@ async function importSidebarCard(file) {
     const form = new FormData();
     form.append('file', file, file.name || 'card');
     try {
-        await cApi('/api/characters/import', {method: 'POST', body: form});
-        window.location.assign('/');
+        const made = await cApi('/api/characters/import', {method: 'POST', body: form});
+        window.location.assign(made.card_voice?.name ? `/home?cardVoice=${encodeURIComponent(made.card_id)}` : '/');
     } catch (err) {
         showReplyNotice(err.message || 'Could not import the card. Try again.');
     }
@@ -491,7 +491,7 @@ async function loadMeetLibrary() {
         return;
     }
     if (!data.available) {
-        hint.textContent = 'NPC Forge\'s library folder was not found. Set imagegen.npc_forge_library in config.yaml.';
+        hint.textContent = 'Start NPC Forge with character card support to see its library.';
         return;
     }
     hint.textContent = data.characters.length

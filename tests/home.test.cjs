@@ -567,7 +567,7 @@ test('a pal takes a portrait from NPC Forge\'s library: only characters with a p
     assert.equal(byId.palSettingsPortraitLife.hidden, false);                      // it can be brought to life
 });
 
-test('without NPC Forge\'s library folder the picker says how to set it', async () => {
+test('an unavailable NPC Forge library tells the user how to connect', async () => {
     const {doc, byId} = page();
     const {fetchImpl} = server({library: {available: false, characters: []}});
     const home = load().start({doc, fetchImpl, navigate() {}, wait: async () => {}});
@@ -576,7 +576,7 @@ test('without NPC Forge\'s library folder the picker says how to set it', async 
     await settle();
     await byId.palSettingsPortraitLibrary.click();
     assert.equal(byId.libraryGrid.children.length, 0);
-    assert.match(byId.libraryStatus.textContent, /imagegen\.npc_forge_library/);
+    assert.match(byId.libraryStatus.textContent, /Start NPC Forge with character card support/);
     await byId.libraryClose.click();
     assert.equal(byId.palSettingsDialog.open, true);
 });

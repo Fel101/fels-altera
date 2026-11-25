@@ -232,9 +232,8 @@ def start(store, avatar_id, client, *, source, description="", style=DEFAULT_STY
         if not picture:
             raise PortraitError("This character's card has no picture. Paint from a description instead.")
         photo = picture.read_bytes()
-    if not store.forge_available():
-        raise PortraitError("Altera cannot see NPC Forge's library folder, so it could not bring the portrait in. Set "
-                            "imagegen.npc_forge_library in config.yaml.", 503)
+    if not store.forge_library_available():
+        raise PortraitError("Start NPC Forge with character card support, then try again.", 503)
     try:
         made = client.paint(name=record.get("name") or "", description=description, gender=gender, style=style,
                             setting=setting, photo=photo, image_model=image_model, edit_model=edit_model)
@@ -313,10 +312,23 @@ def check(store, avatar_id, client, checker=None, living=None) -> dict:
 
 
 def _bring_in(store, record, job, checker, living):
-    path = store.forge_file(job.get("npc_id"), "portrait")
-    if not path:
-        return "error", "NPC Forge finished, but its portrait is not in the library folder Altera reads."
-    png = path.read_bytes()
+    package = None
+    npc_id = job.get("npc_id")
+    if store.forge_mode() == "cards":
+        from core import characters
+        try:
+            package = characters.read_package(f"{npc_id}.charx", store.forge_client().card(npc_id), include_voice=False)
+            if package.sheet is not None:
+                fields = characters.sheet_fields(package)
+                job = {**job, **{key: fields[key] for key in ("age", "age_source") if key in fields}}
+        except (forge.ForgeError, characters.CharacterError) as error:
+            return "error", str(error)
+        png = package.portrait
+    else:
+        path = store.forge_file(npc_id, "portrait")
+        png = path.read_bytes() if path else None
+    if not png:
+        return "error", "NPC Forge has no portrait for this character. Open it in Forge and try again."
     result = checker.check(png) if checker else {"ok": None, "apparent_age": None, "model": None}
     if result.get("ok") is False:
         return "rejected", (f"The portrait looks younger than {safety.MIN_APPARENT_AGE} (estimated "
@@ -337,6 +349,9 @@ def _bring_in(store, record, job, checker, living):
     record["age_check"] = {"ok": result.get("ok"), "apparent_age": result.get("apparent_age"), "model": result.get("model")}
     if living is not None:
         living.forget(record["id"])                       # frames of an earlier portrait do not fit this one
+        if package is not None:
+            from hashlib import sha256
+            living.import_frames(record["id"], package, {sha256(png).hexdigest(): result})
     return "ready", ""
 
 
@@ -378,9 +393,12 @@ def from_library(store, avatar_id, npc_id, checker=None, living=None) -> dict:
     record = _person(store, avatar_id)
     if record.get("forge_job"):
         raise PortraitError("NPC Forge is still working on a picture for them. Wait for it, or cancel it.", 409)
-    if not store.forge_available():
-        raise PortraitError("Altera cannot see NPC Forge's library folder. Set imagegen.npc_forge_library in config.yaml.", 503)
-    row = next((r for r in store.list_forge() if r["id"] == npc_id), None) if valid_id(npc_id) else None
+    if not store.forge_library_available():
+        raise PortraitError("Start NPC Forge with character card support, then try again.", 503)
+    try:
+        row = next((r for r in store.forge_choices() if r["id"] == npc_id), None) if valid_id(npc_id) else None
+    except forge.ForgeError as error:
+        raise PortraitError(str(error), 503) from None
     if not row:
         raise PortraitError("That character was not found in NPC Forge's library.", 404)
     if not row["has_portrait"]:

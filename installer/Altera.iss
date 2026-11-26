@@ -46,6 +46,21 @@ Source: "{#Staging}\wheels\*.whl"; DestDir: "{tmp}\wheels"; Flags: ignoreversion
 Source: "{#Staging}\app\scripts\windows_install.py"; DestDir: "{app}"; DestName: "launch.pyw"; Flags: ignoreversion
 Source: "{#Staging}\altera.ico"; DestDir: "{app}"; Flags: ignoreversion
 
+[UninstallDelete]
+; What Setup and Altera made beside the installed files: each release's Python environment, the local voice's
+; environment, Python's caches, a downloaded update and the installation's own records. The instance folder (chats,
+; settings, backups and downloaded models) is kept; SETUP.md says so.
+Type: filesandordirs; Name: "{app}\releases"
+Type: filesandordirs; Name: "{app}\python"
+Type: filesandordirs; Name: "{app}\update"
+Type: filesandordirs; Name: "{app}\instance\voice\.venv"
+Type: files; Name: "{app}\installed.json"
+Type: files; Name: "{app}\setup.log"
+Type: files; Name: "{app}\setup-error.txt"
+Type: files; Name: "{app}\launcher.log"
+Type: files; Name: "{app}\update-notice.txt"
+Type: dirifempty; Name: "{app}"
+
 [Icons]
 Name: "{userprograms}\{#AppName}"; Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\launch.pyw"""; WorkingDir: "{app}"; IconFilename: "{app}\altera.ico"
 

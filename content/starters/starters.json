@@ -1,0 +1,16 @@
+{
+  "starters": [
+    {
+      "key": "ottilie-mere",
+      "name": "Ottilie Mere",
+      "file": "ottilie-mere.charx",
+      "line": "A watchful herbalist's apprentice in a fantasy village, slow to trust and kinder than she looks."
+    },
+    {
+      "key": "lorraine-malone",
+      "name": "Lorraine Malone",
+      "file": "lorraine-malone.charx",
+      "line": "A sunny, hot-tempered crook in a 1940s city, out to clear her name."
+    }
+  ]
+}

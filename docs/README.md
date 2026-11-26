@@ -21,7 +21,7 @@ who keeps notes and memories. A chat model is all you need to start. Voices, pic
 | What you want | Where to start |
 | --- | --- |
 | An easygoing chat | **Make a pal**. Choose how they sound and what they remember. [Pals](PALS.md) |
-| A character from a file or NPC Forge | **Import a character card** or open the card waiting on Home. [Characters](CHARACTERS.md) |
+| A character from a file or NPC Forge | **Import a character card**, open the card waiting on Home, or add a starter character. [Characters](CHARACTERS.md) |
 | A companion with their own background, notes and memories | **Write a companion** or use **Add someone → Meet someone new** with NPC Forge. [Companions](COMPANIONS.md) |
 | A chat for a child | Open a pal's **Settings** on Home and choose **Set up kids mode…**. [Kids mode](KIDS_MODE.md) |
 

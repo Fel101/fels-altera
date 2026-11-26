@@ -22,6 +22,13 @@ to the Windows Recycle Bin or are deleted on other systems. The chat opens with 
 If a card fails to import, the app shows the reason. Check that it contains a name and a fictional adult character.
 [Card size limits and checks](SAFETY.md#character-cards)
 
+## Starter characters
+
+Two characters made with NPC Forge come with Altera: Ottilie Mere, a herbalist's apprentice in a fantasy village, and
+Lorraine Malone, a crook in a 1940s city. Home offers them under **Starter characters** until you add them. **Add**
+imports the card as if you had chosen the file, with the same checks, and then offers the voice designed for them in
+Voice Lab. A starter you add and later remove is offered again.
+
 Altera saves the original in `data/characters/` and the local character record and pictures under `data/avatars/`.
 Backups cover both locations. **Remove** deletes them.
 

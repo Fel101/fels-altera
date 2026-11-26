@@ -81,7 +81,9 @@ def test_adding_a_starter_is_refused_from_another_site_and_in_the_kids_view(worl
 
 
 def test_the_starters_that_come_with_altera_are_adults_with_designed_voices_and_no_flirting():
-    for entry in starters.catalogue():
+    shipped = starters.catalogue()
+    assert shipped, "content/starters lists no card that is there"
+    for entry in shipped:
         package = characters.read_package(entry["path"].name, entry["path"].read_bytes())
         assert package.card["name"] == entry["name"] and entry["line"]
         assert package.portrait, entry["key"]

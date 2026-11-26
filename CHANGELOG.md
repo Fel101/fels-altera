@@ -13,8 +13,12 @@ on your machine.
   finds a newer release when you ask, **Update now** installs it, and **Undo** goes back to the version before.
   [Windows setup and updates](docs/SETUP.md#windows-installer)
 - **Help getting a chat model running.** Setup tells "not installed" apart from "installed but its server is off", and
-  can start LM Studio's or Ollama's server after you say yes. It suggests a model that fits this PC's memory, and with
-  Ollama it can download it, with progress and Stop.
+  can start LM Studio's or Ollama's server after you say yes. It suggests one of the two models that did best on
+  Altera's model test, Gemma 4 12B or LFM3 1.7B, by this PC's memory, and with Ollama it can download it, with
+  progress and Stop. [Choosing a chat model](docs/CHOOSING_A_MODEL.md) has the test's results.
+- **Two starter characters.** Ottilie Mere and Lorraine Malone, made with NPC Forge, are offered on Home with their
+  pictures and a voice designed for Voice Lab. Nothing is added until you choose **Add**, and adding one goes through
+  the same checks as importing a card.
 - **Part of Fel's Studio,** four free apps that work together:
   - pals can speak with a ready voice from [Voice Lab](https://github.com/Fel101/fels-voice-lab), including the
     voices cast there from your own recordings, with each voice's licence shown;

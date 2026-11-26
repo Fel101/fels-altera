@@ -50,9 +50,21 @@ and run `python -m pytest -q -m requires_addon` to include its integration check
 ## Build the Windows release kit
 
 Use Windows, 64-bit Python 3.12 and Inno Setup 6. Run
-`python scripts/build_installer.py --ref HEAD` to build Setup and SHA256SUMS from the committed files. The build
-downloads the pinned Python runtime and the locked dependency wheels. The release workflow checks that the
-installer can set up its own Python, then attests the two artifacts.
+`python scripts/build_installer.py --ref HEAD` to build `FelsAltera-Setup-<version>.exe` and SHA256SUMS from the
+committed files. The build downloads the pinned Python runtime and the locked dependency wheels.
+
+## Making a release
+
+1. Set `VERSION` in `core/version.py`, and give `CHANGELOG.md` a section headed `## <version> (YYYY-MM-DD)`, written
+   for the people using Altera. That section becomes the release notes: `python scripts/release_notes.py` prints them.
+2. Run the checks above, then commit and push `main`.
+3. Tag that commit `v<version>` and push the tag. `.github/workflows/release.yml` runs the checks on the tag, builds
+   Setup and SHA256SUMS, attests both and makes a draft release. A second runner downloads the draft's files, checks
+   their hashes and attestations with `scripts/check_release_files.py`, installs Setup with no Python on the PATH and
+   starts Altera once. Only then is the draft published.
+
+If any job fails, nothing is published. Delete the draft, fix the problem, and release the next patch number: a
+published release is never changed.
 
 ## Fel's Studio ports
 

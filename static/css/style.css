@@ -301,7 +301,9 @@ body {
     min-height: 0;
     position: relative;
     isolation: isolate;
-    overflow: hidden;
+    /* clip, not hidden: the blurred picture below spills 80px past the column, and a hidden overflow can still be scrolled,
+       which opening the GPU light's details did, sliding the chat under the people list */
+    overflow: clip;
 }
 
 /* her picture, blurred far out of focus, tints the conversation behind the messages (companions.js sets --companion-portrait) */
@@ -1127,6 +1129,17 @@ body {
         width: 56px;
         height: 56px;
         font-size: 1.3rem;
+    }
+
+    /* On a phone the GPU light is its dot: the words left the name two letters. Screen readers still read them, and
+       the details say who holds the GPU. */
+    #gpuLightLabel {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
     }
 }
 

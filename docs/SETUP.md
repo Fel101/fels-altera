@@ -35,7 +35,7 @@ usual cache. If `memory.embedding_model_path` or `voice.stt_model` names a folde
 into it and says what is missing instead. `--models` cannot be combined with `--offline` or `--check`. Text chat works
 without either model.
 
-Existing `config.yaml`, `config.local.yaml`, `.env`, personality, provider selection, data, backups, and model caches are preserved. Setup does not open the conversation/vector stores or unlock private storage. First startup continues to use the existing runtime bootstrap; setup copies the same starter `config.example.yaml`, plus missing personality and adult-tier defaults for a separate instance.
+Existing `config.yaml`, `config.local.yaml`, `.env`, personality, provider selection, data, backups, and model caches are preserved. Setup does not open the conversation/vector stores or unlock private storage. Setup and first startup create the starter config and copy the personality file when needed for a separate instance.
 
 ## Check before making changes
 
@@ -104,7 +104,13 @@ The environment remains beside the source checkout. Keep the same absolute `ALTE
 
 The first time Altera opens on a fresh instance it asks for a name, sends a tiny test message to the selected model and shows which optional pieces are up (speech, NPC Forge, ComfyUI). It then ends on Home, where **Make a pal** needs nothing but the model.
 
-A fresh instance has no model chosen. For LM Studio, Ollama and vLLM the page lists the models your server has and you pick one. The cloud providers start on a default you can change: `gpt-4o-mini` for OpenAI and `mistralai/mistral-small-3.2-24b-instruct` for OpenRouter.
+A fresh instance has no model chosen. Choose your provider and a model it serves. The cloud providers offer a default model you can change.
+
+- **If the local server is off**, Setup explains how to open LM Studio or Ollama. **Start it for me** asks first, then starts an installed provider at its usual local port.
+- **If Ollama has no models**, Setup can suggest one based on your graphics memory and RAM. Its button shows the approximate download size. Confirm to download and use the model. **Stop download** closes Altera's download request. Ollama can reuse partial files when you try again.
+- **If LM Studio has no models**, open the suggested model's page and use LM Studio to download it. Back in Altera, choose **Check again** and select the model.
+
+The estimates leave some memory for Windows and the model's work. The [model catalog](../content/model_suggestions.yaml) lists the suggestions and their licences. [Qwen3 download](https://ollama.com/library/qwen3:4b-instruct-2507-q4_K_M) · [Granite download](https://ollama.com/library/granite4:micro)
 
 The test message is the only reply Altera generates without a conversation: it is a fixed `Reply with the single word OK.` prompt, labelled as a test on the page, and nothing a person typed is included. If the provider is missing, down, misconfigured or silent, the page says what to start and how for LM Studio and Ollama. Nothing there blocks finishing: **Skip for now** is remembered, and the same check is in Settings as **Setup check**.
 

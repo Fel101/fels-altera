@@ -1,0 +1,18 @@
+# First match wins. Memory figures leave room for the OS and the model's working memory.
+# Both models answer directly within Altera's default reply budget.
+- name: Qwen3 4B Instruct
+  ram_gib: 12
+  vram_gib: 6
+  cpu_ram_gib: 24
+  license: Apache 2.0
+  ollama: qwen3:4b-instruct-2507-q4_K_M
+  ollama_gb: 2.5
+  lmstudio: https://lmstudio.ai/models/qwen/qwen3-4b-2507
+- name: Granite 4.0 Micro
+  ram_gib: 7
+  vram_gib: 3
+  cpu_ram_gib: 7
+  license: Apache 2.0
+  ollama: granite4:micro
+  ollama_gb: 2.1
+  lmstudio: https://lmstudio.ai/models/ibm/granite-4-micro

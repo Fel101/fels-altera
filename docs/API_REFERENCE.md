@@ -349,6 +349,10 @@ Source: [`setup.py`](../core/routes/setup.py).
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `POST` | `/api/setup/check` | Send one tiny fixed prompt to the selected model and report whether it answered. A missing, down, misconfigured or silent provider is a result (`ok: false` with `reason`, `detail` and `hint`), never a server error. |
+| `GET` | `/api/setup/local/<provider>` | For LM Studio and Ollama at their normal loopback ports, report server state, available models, a hardware-based suggestion when the library is empty, and the latest job. |
+| `POST` | `/api/setup/local/<provider>/start` | With `{confirmed: true}`, start the installed local provider and return a job. |
+| `POST` | `/api/setup/local/ollama/download` | With `{confirmed: true, model}`, ask local Ollama to download an offered model. |
+| `GET`, `DELETE` | `/api/setup/local/<provider>/jobs/<job_id>` | Read an action's status or stop an active download. |
 
 
 ### App lock and kids view

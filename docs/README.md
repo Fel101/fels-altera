@@ -59,7 +59,7 @@ the app as it was on their date, not as it is now.
 
 ## Start and connect
 
-Follow the [root quickstart](../README.md). After setup, `start.bat` starts Altera and opens the browser. New installs use **http://127.0.0.1:8767**. Existing installs keep the port in `config.yaml`. On a fresh instance the first run asks for a name, sends a tiny test message to the selected model and shows which optional pieces are running, then opens Home. If nothing answers it says what to start for LM Studio and Ollama; nothing there blocks finishing.
+Follow the [root quickstart](../README.md). After setup, `start.bat` starts Altera and opens the browser. New installs use **http://127.0.0.1:8767**. Existing installs keep the port in `config.yaml`. First-run Setup helps start a local model server, finds a model for the PC, and sends a short test message. You can skip to Home at any point. [First-run setup](SETUP.md#the-first-run)
 
 Start the model service you intend to use. In Settings, choose a provider and a model that service actually serves, or let the first run check it. The same check is available later as Settings → Setup check. Presets cover LM Studio, Ollama, vLLM, OpenAI, OpenRouter and a custom OpenAI-compatible endpoint. The starter example leaves the model blank; provider presets can supply a default name, but Altera does not install model assets for you. Select the exact identifier your server should run. Switching providers does not require restarting Altera. Altera does not automatically switch to a cloud model if a local provider fails.
 

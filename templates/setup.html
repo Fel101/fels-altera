@@ -32,13 +32,24 @@
 
         <section class="setup-card" aria-labelledby="setupModelTitle">
             <h2 id="setupModelTitle">A chat model</h2>
-            <p class="home-muted">Altera talks to a model server, usually LM Studio or Ollama on this PC. Choose one and a model it serves. The check sends one short fixed test message, never anything you typed, so the first real one does not fail.</p>
+            <p class="home-muted">Choose a model from LM Studio, Ollama or another provider. Altera checks readiness with a short, fixed test message.</p>
             <div class="setup-picker">
                 <label class="home-field">Provider<select id="setupProvider"></select></label>
                 <label class="home-field">Model<select id="setupModel"></select></label>
                 <button type="button" id="setupUse" class="home-secondary">Use this model</button>
             </div>
             <p id="setupWhere" class="home-muted"></p>
+            <div id="setupAssist" class="setup-assist" hidden>
+                <p id="setupAssistStatus" class="home-status" role="status" tabindex="-1"></p>
+                <p id="setupSuggestion" class="home-muted" hidden></p>
+                <div class="setup-model-actions">
+                    <button type="button" id="setupStart" class="home-secondary" hidden>Start it for me</button>
+                    <button type="button" id="setupDownload" class="home-secondary" hidden>Download model</button>
+                    <a id="setupModelLink" target="_blank" rel="noreferrer" hidden></a>
+                    <button type="button" id="setupStop" class="home-secondary" hidden>Stop download</button>
+                </div>
+                <progress id="setupDownloadProgress" max="100" aria-label="Current download file" hidden></progress>
+            </div>
             <p id="setupModelState" class="home-status" role="status" aria-live="polite">Checking the model…</p>
             <p id="setupModelDetail" class="home-muted"></p>
             <p id="setupModelNote" class="home-muted"></p>
@@ -60,6 +71,16 @@
             <button type="button" id="setupDone" class="home-primary">Finish and make a pal</button>
         </div>
     </main>
+    <dialog id="setupConfirmation" class="setup-confirm" aria-labelledby="setupConfirmTitle" aria-describedby="setupConfirmDetail">
+        <form method="dialog">
+            <h2 id="setupConfirmTitle"></h2>
+            <p id="setupConfirmDetail" class="home-muted"></p>
+            <div class="setup-actions">
+                <button class="home-secondary" value="cancel" autofocus>Cancel</button>
+                <button id="setupConfirmAction" class="home-primary" value="confirm">Continue</button>
+            </div>
+        </form>
+    </dialog>
     <script src="{{ url_for('static', filename='js/setup.js') }}"></script>
 </body>
 </html>

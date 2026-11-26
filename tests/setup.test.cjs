@@ -14,6 +14,7 @@ class Element {
     }
     set innerHTML(_) { throw new Error('The setup page must render text, never HTML'); }
     setAttribute(name, value) { this.attributes[name] = String(value); }
+    removeAttribute(name) { delete this.attributes[name]; }
     addEventListener(name, callback) { (this.listeners[name] ||= []).push(callback); }
     append(...nodes) { this.children.push(...nodes); }
     replaceChildren(...nodes) { this.children = nodes; }
@@ -25,7 +26,10 @@ const text = node => [node.textContent, ...node.children.flatMap(text)].filter(B
 
 const IDS = ['setupTitle', 'setupIntro', 'setupName', 'setupModelState', 'setupModelDetail', 'setupModelNote',
     'setupCheck', 'setupOptional', 'setupStatus', 'setupSkip', 'setupDone', 'setupSkipLink',
-    'setupProvider', 'setupModel', 'setupUse', 'setupWhere', 'setupLabStatus', 'setupLabUse'];
+    'setupProvider', 'setupModel', 'setupUse', 'setupWhere', 'setupLabStatus', 'setupLabUse',
+    'setupAssist', 'setupAssistStatus', 'setupSuggestion', 'setupStart', 'setupDownload', 'setupStop',
+    'setupModelLink', 'setupDownloadProgress', 'setupConfirmation', 'setupConfirmTitle',
+    'setupConfirmDetail', 'setupConfirmAction'];
 
 function page() {
     const byId = Object.fromEntries(IDS.map(id => [id, new Element(/^(setup(Name|Check|Done|Skip)$)/.test(id) ? 'button' : 'div')]));
@@ -102,6 +106,90 @@ test('the check can be run again without reloading the page', async () => {
     await byId.setupCheck.click();
     assert.equal(calls.filter(call => call.url === '/api/setup/check').length, 2);
     assert.equal(byId.setupCheck.disabled, false);
+});
+
+function localOllama({running = false, finishDownload = true} = {}) {
+    const base = '/api/setup/local/ollama';
+    const model = 'granite4:micro';
+    const suggestion = {name: 'Granite 4.0 Micro', model, size_gb: 2.1, license: 'Apache 2.0', basis: '8 GB RAM'};
+    const {fetchImpl, calls} = server({check: {ok: false}});
+    const reply = data => ({ok: true, status: 200, json: async () => data});
+    let job, installed = false, chosen = false;
+    return {model, calls, fetchImpl: async (url, init = {}) => {
+        if (url === '/api/llm/providers') return reply({providers: [
+            {key: 'ollama', name: 'Ollama', base_url: 'http://localhost:11434/v1', is_active: true},
+        ]});
+        if (url === '/api/llm/switch') {
+            calls.push({url, method: init.method, body: JSON.parse(init.body)});
+            chosen = true;
+            return reply({status: 'ok'});
+        }
+        if (url === '/api/setup/check' && chosen) return reply({ok: true, model, reply: 'OK'});
+        if (!url.startsWith(base)) return fetchImpl(url, init);
+        calls.push({url, method: init.method || 'GET', body: init.body ? JSON.parse(init.body) : undefined});
+        if (url === base) return reply({
+            supported: true, state: running ? 'running' : 'stopped', can_start: !running,
+            models: installed ? [model] : [], suggestion: installed ? null : suggestion, job,
+        });
+        if (init.method === 'POST') {
+            const action = url.endsWith('/start') ? 'start' : 'download';
+            job = {id: action, action, model, state: 'working', message: 'Working', percent: 40};
+        } else if (init.method === 'DELETE') {
+            job = {...job, state: 'stopping', percent: null};
+        } else if (job.state === 'stopping') {
+            job = {...job, state: 'stopped', message: 'Download stopped.'};
+        } else if (job.action === 'start' || finishDownload) {
+            running = true;
+            installed = job.action === 'download';
+            job = {...job, state: 'ready'};
+        }
+        return reply(job);
+    }};
+}
+
+test('a stopped local server and the suggested download each wait for confirmation', async () => {
+    const {doc, byId} = page();
+    const {fetchImpl, calls, model} = localOllama();
+    const answers = [false, true, false, true], questions = [];
+    const setup = load().start({doc, fetchImpl, navigate() {}, search: () => '', pause: async () => {},
+        ask(message) { questions.push(message); return answers.shift(); }});
+    await setup.loaded;
+    assert.match(byId.setupAssistStatus.textContent, /Ollama is installed, but its server is off/);
+    assert.equal(byId.setupStart.hidden, false);
+    assert.equal(byId.setupDownload.hidden, true);
+    await byId.setupStart.click();
+    assert.equal(calls.filter(call => call.method === 'POST' && call.url.endsWith('/start')).length, 0);
+    await byId.setupStart.click();
+    assert.equal(byId.setupStart.hidden, true);
+    assert.match(byId.setupDownload.textContent, /Download Granite 4\.0 Micro \(2\.1 GB\)/);
+    await byId.setupDownload.click();
+    assert.equal(calls.filter(call => call.method === 'POST' && call.url.endsWith('/download')).length, 0);
+    await byId.setupDownload.click();
+    assert.deepEqual(calls.find(call => call.url.endsWith('/download')).body, {confirmed: true, model});
+    assert.deepEqual(calls.find(call => call.url.endsWith('/switch')).body, {provider: 'ollama', model});
+    assert.equal(byId.setupModelState.textContent, `Ready — ${model} answered.`);
+    assert.match(questions[3], /2\.1 GB of internet data and disk space/);
+});
+
+test('the active download shows file progress and Stop does not switch models', async () => {
+    const {doc, byId} = page();
+    const {fetchImpl, calls} = localOllama({running: true, finishDownload: false});
+    let poll;
+    const setup = load().start({doc, fetchImpl, navigate() {}, search: () => '', ask: () => true,
+        pause: () => new Promise(resolve => { poll = resolve; })});
+    await setup.loaded;
+    const downloading = byId.setupDownload.click();
+    await tick();
+    assert.equal(byId.setupDownloadProgress.value, 40);
+    assert.equal(byId.setupStop.hidden, false);
+    await byId.setupStop.click();
+    assert.equal(byId.setupStop.disabled, true);
+    poll();
+    await downloading;
+    assert.match(byId.setupAssistStatus.textContent, /Download stopped/);
+    assert.equal(byId.setupDownload.hidden, false);
+    assert.equal(calls.filter(call => call.method === 'DELETE').length, 1);
+    assert.equal(calls.some(call => call.url.endsWith('/switch')), false);
 });
 
 test('the optional pieces are listed with what is up, and none of them blocks', async () => {

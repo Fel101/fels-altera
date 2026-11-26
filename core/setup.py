@@ -16,8 +16,7 @@ PROBE_TIMEOUT_S = 60.0
 DETAIL_CHARS = 220
 
 # What to start when a local provider is not there. Both are named because either one is enough.
-LOCAL_START = ('Start LM Studio and load a chat model, or start Ollama with `ollama serve` and pull a model with '
-               '`ollama pull llama3.2`, then try again.')
+LOCAL_START = 'Choose LM Studio or Ollama above for help starting it and finding a chat model.'
 
 
 def status() -> dict:
@@ -87,7 +86,7 @@ def _hint(reason, name, model, base_url) -> str:
         return f'{name} refused the connection. Check its API key in Settings, then try again.'
     if reason == 'missing_model':
         if name.lower().startswith('ollama'):
-            return f'Ollama is running but {model} is not pulled. Run `ollama pull {model}`, then try again.'
+            return f'Ollama is running but {model} is missing. Choose an installed model or download one above.'
         return (f'{name} is running but does not serve {model}. Open {name}, load a chat model, '
                 'then choose it above.')
     if reason == 'empty':

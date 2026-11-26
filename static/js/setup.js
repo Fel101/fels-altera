@@ -21,12 +21,21 @@
 
     function start({doc = document, fetchImpl = (...args) => window.fetch(...args),
                     navigate = url => window.location.assign(url),
-                    search = () => (window.location ? window.location.search : '')} = {}) {
+                    search = () => (window.location ? window.location.search : ''),
+                    ask,
+                    pause = () => new Promise(resolve => window.setTimeout(resolve, 650))} = {}) {
         const $ = id => doc.getElementById(id);
         const checking = new URLSearchParams(search()).get('check') === '1';
-        const state = {name: '', busy: false, saving: false, result: null, providers: [], activeModel: ''};
+        const state = {name: '', busy: false, saving: false, result: null, providers: [], activeModel: '',
+            modelLoad: 0, local: null, asking: false, moving: false, job: null};
+        const localPath = key => `/api/setup/local/${encodeURIComponent(key)}`;
+        const jobPath = (key, job) => `${localPath(key)}/jobs/${encodeURIComponent(job.id)}`;
+        const working = job => ['working', 'stopping'].includes(job?.state);
 
-        function say(id, value) { const node = $(id); if (node) node.textContent = value; }
+        function say(id, value) {
+            const node = $(id);
+            if (node && node.textContent !== value) node.textContent = value;
+        }
 
         async function call(url, init) {
             const response = await fetchImpl(url, init);
@@ -57,22 +66,179 @@
             return item;
         }
 
-        async function models(key) {
+        async function models(key, {prefer = '', resume = true} = {}) {
             const select = $('setupModel');
-            if (!select) return;
+            if (!select) return [];
+            const request = ++state.modelLoad;
+            state.local = null;
+            assist();
+            if ($('setupUse')) $('setupUse').disabled = true;
             select.replaceChildren(option('', 'Loading models…'));
             const provider = state.providers.find(item => item.key === key) || {};
             say('setupWhere', whereIs(provider.base_url));
-            let found = [];
-            try { found = (await call(`/api/llm/providers/${encodeURIComponent(key)}/models`)).models || []; } catch (_) { found = []; }
-            if (($('setupProvider')?.value || key) !== key) return;
+            let local, ids = [];
+            if ($('setupAssist') && ['lmstudio', 'ollama'].includes(key)) {
+                try { local = await call(localPath(key)); } catch (_) { /* Fall back to the regular model list. */ }
+            }
+            try {
+                if (local?.supported) ids = local.models || [];
+                else {
+                    const found = (await call(`/api/llm/providers/${encodeURIComponent(key)}/models`)).models || [];
+                    ids = found.map(item => item.id).filter(Boolean);
+                }
+            } catch (_) { /* Check again retries the connection. */ }
+            if (request !== state.modelLoad || ($('setupProvider')?.value || key) !== key) return [];
             const current = provider.is_active ? state.activeModel : (provider.default_model || '');
-            const ids = found.map(item => item.id).filter(Boolean);
-            if (provider.is_active && current && !ids.length) ids.push(current);   // the server is not answering: show what is chosen
-            select.replaceChildren(...(ids.length ? ids.map(id => option(id, id, id === current))
-                : [option('', 'No models found: start the server and load a model')]));
-            if (ids.length) select.value = ids.includes(current) ? current : ids[0];
+            if (!local?.supported && provider.is_active && current && !ids.length) ids.push(current);
+            const chosen = ids.find(id => prefer && id.toLowerCase() === prefer.toLowerCase()) ||
+                (ids.includes(current) ? current : ids[0]);
+            select.replaceChildren(...(ids.length ? ids.map(id => option(id, id, id === chosen))
+                : [option('', 'No models available')]));
+            select.value = chosen || '';
             if ($('setupUse')) $('setupUse').disabled = !ids.length;
+            state.local = local?.supported ? {...local, key, name: provider.name || key} : null;
+            assist();
+            if (resume && working(local?.job) && !state.moving) {
+                state.moving = true;
+                void follow(key, local.job);
+            }
+            return ids;
+        }
+
+        function assist() {
+            const panel = $('setupAssist');
+            if (!panel) return;
+            const local = state.local;
+            const job = state.job || local?.job;
+            panel.hidden = (!local && !job) || Boolean(local?.models.length && !state.moving);
+            const display = local?.suggestion;
+            const busy = state.moving;
+            const stopped = local?.state === 'stopped';
+            const missing = local?.state === 'missing';
+            const running = local?.state === 'running';
+            const isOllama = local?.key === 'ollama';
+            const manual = isOllama ? 'Open Ollama from the Start menu.'
+                : 'Open LM Studio → Developer → Start server.';
+            let message = '';
+            if (stopped) message = `${local.name} is installed, but its server is off. ${manual}`;
+            else if (missing) message = `Altera couldn't find ${local.name} on this PC. Install it, then check again.`;
+            else if (running && !local.models.length) message = display
+                ? `${local.name} is running. Download a chat model to continue.`
+                : `${local.name} is running. Open it to choose a small chat model for this PC.`;
+            else if (local?.state === 'credentials') message = `${local.name} is running. Check its API key in Settings.`;
+            else if (local?.state === 'unavailable') message = `Altera couldn't read ${local.name}'s model list. Check its server and try again.`;
+            say('setupAssistStatus', job?.message && (busy || ['failed', 'stopped'].includes(job.state)) ? job.message : message);
+            $('setupSuggestion').hidden = !display || busy || missing;
+            say('setupSuggestion', display ? `${display.name} is a starting point for ${display.basis} (${display.license}).` : '');
+            $('setupStart').hidden = !local?.can_start || busy;
+            $('setupStart').disabled = state.busy;
+            $('setupDownload').hidden = !running || !display?.model || busy;
+            $('setupDownload').disabled = state.busy;
+            if (display?.model) say('setupDownload', `Download ${display.name} (${display.size_gb} GB)`);
+            const link = $('setupModelLink');
+            link.hidden = busy || !(missing || (running && display?.link));
+            if (missing) {
+                link.href = isOllama ? 'https://ollama.com/download' : 'https://lmstudio.ai/download';
+                link.textContent = `Install ${local.name}`;
+            } else if (display?.link) {
+                link.href = display.link;
+                link.textContent = `Open ${display.name} in LM Studio`;
+            }
+            $('setupStop').hidden = !busy || job?.action !== 'download';
+            $('setupStop').disabled = job?.state !== 'working';
+            const progress = $('setupDownloadProgress');
+            progress.hidden = !busy || job?.action !== 'download';
+            if (typeof job?.percent === 'number') progress.value = job.percent;
+            else progress.removeAttribute('value');
+            if ($('setupProvider')) $('setupProvider').disabled = busy;
+            if ($('setupCheck')) $('setupCheck').disabled = busy || state.busy;
+            if ($('setupUse')) $('setupUse').disabled = busy || state.busy || !$('setupModel')?.value;
+        }
+
+        async function follow(key, job) {
+            state.job = job;
+            assist();
+            try {
+                while (working(job)) {
+                    await pause();
+                    const next = await call(jobPath(key, job));
+                    job = state.job?.state === 'stopping' && next.state === 'working' ? state.job : next;
+                    state.job = job;
+                    assist();
+                }
+                const downloaded = job.state === 'ready' && job.action === 'download';
+                const ids = await models(key, {prefer: downloaded ? job.model : '', resume: false});
+                if (downloaded && ids.some(id => id.toLowerCase() === job.model.toLowerCase())) {
+                    await use();
+                }
+            } catch (_) {
+                say('setupModelNote', 'Altera lost contact with the setup action. Check again to see its status.');
+            } finally {
+                state.moving = false;
+                state.job = null;
+                assist();
+            }
+        }
+
+        function confirmAction(title, detail, button) {
+            if (ask) return ask(`${title} ${detail}`);
+            const dialog = $('setupConfirmation');
+            say('setupConfirmTitle', title);
+            say('setupConfirmDetail', detail);
+            $('setupConfirmDetail').hidden = !detail;
+            say('setupConfirmAction', button);
+            dialog.returnValue = '';
+            dialog.showModal();
+            return new Promise(resolve => {
+                dialog.addEventListener('close', () => resolve(dialog.returnValue === 'confirm'), {once: true});
+            });
+        }
+
+        async function launch(action) {
+            const local = state.local;
+            if (!local || state.asking || state.moving || state.busy || working(local.job)) return;
+            const model = local.suggestion;
+            if (action === 'download' && !model?.model) return;
+            state.asking = true;
+            let confirmed;
+            try {
+                confirmed = action === 'start'
+                    ? await confirmAction(`Start ${local.name} on this PC?`, '', `Start ${local.name}`)
+                    : await confirmAction(`Download ${model.name} through Ollama?`,
+                        `This uses about ${model.size_gb} GB of internet data and disk space.`, 'Download');
+            } finally {
+                state.asking = false;
+            }
+            if (!confirmed) return;
+            state.moving = true;
+            assist();
+            $('setupAssistStatus').focus();
+            try {
+                const job = await call(`${localPath(local.key)}/${action}`, {method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({confirmed: true, ...(action === 'download' ? {model: model.model} : {})})});
+                await follow(local.key, job);
+            } catch (error) {
+                state.moving = false;
+                assist();
+                say('setupAssistStatus', error.message);
+            }
+        }
+
+        async function stop() {
+            if (!state.local || state.job?.state !== 'working' || state.job.action !== 'download') return;
+            const job = state.job;
+            state.job = {...job, state: 'stopping', message: 'Stopping the download…', percent: null};
+            assist();
+            try {
+                const stopped = await call(jobPath(state.local.key, job), {method: 'DELETE'});
+                if (state.job?.id === job.id) state.job = stopped;
+                assist();
+            } catch (error) {
+                if (state.job?.id === job.id) state.job = job;
+                assist();
+                say('setupAssistStatus', error.message);
+            }
         }
 
         async function providers() {
@@ -114,7 +280,13 @@
 
         function render(result) {
             state.result = result;
-            if (result.ok) {
+            const selected = $('setupProvider')?.value;
+            const provider = result.provider || state.providers.find(item => item.is_active)?.key;
+            if (selected && provider && selected !== provider) {
+                say('setupModelState', 'Choose a model to check it.');
+                say('setupModelDetail', '');
+                say('setupModelNote', '');
+            } else if (result.ok) {
                 const seconds = Math.max(0.1, Math.round((result.ms || 0) / 100) / 10);
                 say('setupModelState', `Ready — ${result.model} answered.`);
                 say('setupModelDetail', `Test reply: “${result.reply}” (${seconds} s).`);
@@ -129,6 +301,7 @@
         async function check() {
             if (state.busy) return;
             state.busy = true;
+            assist();
             if ($('setupCheck')) $('setupCheck').disabled = true;
             say('setupModelState', 'Checking the model… this can take up to a minute the first time.');
             say('setupModelDetail', '');
@@ -141,6 +314,7 @@
             } finally {
                 state.busy = false;
                 if ($('setupCheck')) $('setupCheck').disabled = false;
+                assist();
             }
         }
 
@@ -248,10 +422,21 @@
             return state;
         }
 
-        if ($('setupCheck')) $('setupCheck').addEventListener('click', check);
+        if ($('setupCheck')) $('setupCheck').addEventListener('click', async () => {
+            if (state.moving) return;
+            const key = $('setupProvider')?.value;
+            if (key) await models(key);
+            await check();
+        });
         if ($('setupUse')) $('setupUse').addEventListener('click', use);
+        if ($('setupStart')) $('setupStart').addEventListener('click', () => launch('start'));
+        if ($('setupDownload')) $('setupDownload').addEventListener('click', () => launch('download'));
+        if ($('setupStop')) $('setupStop').addEventListener('click', stop);
         if ($('setupLabUse')) $('setupLabUse').addEventListener('click', useVoiceLab);
-        if ($('setupProvider')) $('setupProvider').addEventListener('change', event => models(event.target.value));
+        if ($('setupProvider')) $('setupProvider').addEventListener('change', event => {
+            if (state.result) render(state.result);
+            return models(event.target.value);
+        });
         if ($('setupDone')) $('setupDone').addEventListener('click', finish);
         if ($('setupSkip')) $('setupSkip').addEventListener('click', skip);
         if ($('setupSkipLink')) $('setupSkipLink').addEventListener('click', event => { event.preventDefault(); return skip(); });

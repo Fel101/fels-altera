@@ -29,9 +29,8 @@ Speech, pictures and a phone connection are optional extras.
 - **A chat model server.** [LM Studio](https://lmstudio.ai) or [Ollama](https://ollama.com) on the same PC is the usual
   choice. vLLM, OpenAI, OpenRouter and any OpenAI-compatible server also work.
 
-Altera itself is light: it runs on the CPU and needs no graphics card. Your hardware matters for the chat model. How
-large a model you can run depends on your GPU's memory, or on your RAM if your graphics share system memory. LM Studio
-shows which models fit. Small models are quicker but follow instructions less well.
+Altera itself runs on the CPU. The chat model needs room in graphics memory or RAM. First-run setup suggests a
+starting model based on this PC's memory. Small models are quicker but follow instructions less well.
 
 **Optional pieces** add something, but chat needs none of them:
 
@@ -50,27 +49,19 @@ voice from [Voice Lab](https://github.com/Fel101/fels-voice-lab).
 
 ## Start in five minutes
 
-### With LM Studio
-
-1. Install [LM Studio](https://lmstudio.ai), download a chat model in it, and load the model.
-2. Turn on its local server (in the Developer view, or run `lms server start`). It listens on port 1234.
-3. Download this repository and open a terminal in its folder. Then run:
+1. Install [LM Studio](https://lmstudio.ai/download) or [Ollama](https://ollama.com/download).
+2. Download this repository and open a terminal in its folder. Run:
 
    ```powershell
    .\setup.bat --models
    .\start.bat
    ```
 
-4. A fresh install opens in your browser at **http://127.0.0.1:8767**. It asks for your name and lists the models LM Studio
-   serves. Pick one, and it sends one short test message to check the model answers. Then choose **Make a pal**.
-   Altera keeps the port in an existing `config.yaml`, including `5001`.
-
-### With Ollama
-
-1. Install [Ollama](https://ollama.com), then get a model: `ollama pull llama3.2`. On Windows and macOS, Ollama runs in
-   the background once installed. On Linux, run `ollama serve`.
-2. Run `.\setup.bat --models` and `.\start.bat` as above. On the first page choose **Ollama** as the provider, then pick
-   the model.
+3. Open Setup in the browser and choose your provider. If its server is off, choose **Start it for me** when offered.
+   With Ollama, you can approve a suggested download there. With LM Studio, open the suggested model's page and
+   use LM Studio to download it. Choose **Check again** when it appears.
+4. Use a model that answers the short test message, then choose **Finish and make a pal**.
+   A new install uses **http://127.0.0.1:8767**, and existing instances keep the port in `config.yaml`.
 
 `--models` downloads the memory and microphone models. Leave it off to set up without them: setup will say they're
 missing, and you can run it again later with `--models`. If the model doesn't answer, the first page says what to
@@ -98,6 +89,8 @@ These are the only things that send anything out, and each one is a choice you m
 - **Pictures** go to the ComfyUI and vision-model servers you set up. Those are usually local, but not necessarily.
 - **Setup** downloads Python packages from PyPI. With `--models`, it also downloads the memory and speech models from
   Chroma's model store and Hugging Face.
+- **An approved Ollama download** asks Ollama on this PC to fetch the selected model from its registry. The request
+  contains the model name. Chats stay on this PC. The LM Studio model link opens its catalog in your browser.
 
 Altera has no account, no telemetry and no automatic fallback to another provider. The files on disk are not encrypted:
 anyone who can open Altera's folder can read them, so use full-disk encryption if that matters to you

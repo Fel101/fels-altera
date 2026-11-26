@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Fel's Voice Lab HTTP API",
-    "version": "0.4.0",
+    "version": "1.0.0",
     "summary": "The local service behind the Voice Lab's pages, for scripts and other programs.",
     "description": "Listens on 127.0.0.1 only. JSON in, JSON out, except where a call returns audio. Every error is a JSON object with an `error` message. See docs/API.md for the conventions, the speaking calls and the command-line tool.",
     "license": {
@@ -168,7 +168,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The engine catalog. An engine's `id` is the `engine` of the speaking calls; only engines whose `integration.service_api` is true answer them. `support` is `supported` (tested for every release on the Lab's test GPU and on the CPU where it runs), `works` (tested when it changes) or `experimental` (may break or have limits, described in `support_note`). Each engine has a `licence` rating and reason, and can have a separate `preset_licence` for its voice catalog. Each engine also has `facts`, what its card on the Models page says, from the catalog, its adapter, its installer and the language screen: `first_model` (marked as a good first model), and `runs` (`cpu`, `gpu`, `gpu_memory_gb`), `voices` (`clones`, `presets`, `designs`, `converts`), `direction` (`takes`, `acts_tags`), `languages` (`offered`, each `label`, `language` and its `screen` result; `filter`, the languages the page's question matches) and `output` (`status`), each with its `text` in plain words.",
+            "description": "The engine catalog. An engine's `id` is the `engine` of the speaking calls; only engines whose `integration.service_api` is true answer them. `support` is `supported` (tested for every release on the Lab's test GPU and on the CPU where it runs), `works` (tested when it changes) or `experimental` (may break or have limits, described in `support_note`). Each engine has a `licence` rating and reason, and can have a separate `preset_licence` for its voice catalog. Each engine also has `facts`, what its card on the Models page says, from the catalog, its adapter, its installer and the language screen: `first_model` (marked as a good first model), and `runs` (`cpu`, `gpu`, `gpu_memory_gb`), `voices` (`clones`, `presets`, `designs`, `converts`), `direction` (`takes`, `acts_tags`), `languages` (`offered`, each `label`, `language` and its `screen` result; `filter`, the languages the page's question matches) and `output` (`rating`, the model's licence rating; `preset_rating`, its voice catalog's where that has its own; and `status`, `restricted` or `unknown` as in an export's licence profile), each with its `text` in plain words.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3306,7 +3306,7 @@
         ],
         "responses": {
           "201": {
-            "description": "`reference`.",
+            "description": "`reference`. It keeps the take's licence rating (`licence_rating`), unless `allowed_use` is given or the take's own recording has no rating yet.",
             "content": {
               "application/json": {
                 "schema": {

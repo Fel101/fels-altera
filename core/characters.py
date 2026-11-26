@@ -138,8 +138,9 @@ def voice_offer(package):
             "archive": package.voice_file is not None, "cloned": voice.get("cloned_from_person") is True}
 
 
-def import_card(store, filename: str, data: bytes, checker=None, *, living=None, package=None, inbox_key=None) -> dict:
-    """Save an imported character and its original locally."""
+def import_card(store, filename: str, data: bytes, checker=None, *, living=None, package=None, inbox_key=None,
+                starter=None) -> dict:
+    """Save an imported character and its original locally. inbox_key or starter records where the card came from."""
     package = package or read_package(filename, data)
     card = package.card
     fields = sheet_fields(package) if package.sheet is not None else {}
@@ -150,7 +151,7 @@ def import_card(store, filename: str, data: bytes, checker=None, *, living=None,
                  **{f: card[f] for f in CARD_FIELDS}, "alternate_greetings": card["alternate_greetings"]},
         "creator_notes": card["creator_notes"], "creator": card["creator"], "tags": card["tags"],
         "source": {"type": "character", "file": avatar_id + package.extension, "spec": card["spec"],
-                   "version": card["character_version"], **({"inbox_key": inbox_key} if inbox_key else {})},
+                   "version": card["character_version"], **({"inbox_key": inbox_key} if inbox_key else {}), **({"starter": starter} if starter else {})},
         "voice": "", "features": dict.fromkeys(FEATURES, True), "card_instructions": True,
         "book": card["book"], "lorebook": True, "card_voice": voice_offer(package),
     }

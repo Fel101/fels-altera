@@ -19,6 +19,11 @@
 .home-inbox-secondary { padding: 8px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-hover); color: var(--text-primary); font: inherit; cursor: pointer; }
 .home-inbox button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .home-inbox-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.home-starters { margin: 28px 0 0; }
+.home-starters img { width: 64px; height: 64px; border-radius: 12px; object-fit: cover; background: var(--bg-tertiary); flex-shrink: 0; }
+.home-starters li > div:first-child { display: flex; gap: 12px; align-items: center; }
+.home-starters li p { margin: 2px 0 0; }
+.discreet .home-starters img { filter: blur(12px); }
 .home-card-terms { margin-block: 12px; overflow-wrap: anywhere; }
 .home-wrap-actions { flex-wrap: wrap; margin-top: 12px; }
 .home-continue[hidden] { display: none; }

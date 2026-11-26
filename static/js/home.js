@@ -299,6 +299,50 @@
             }
         }
 
+        // ---- starter characters that come with Altera ---------------------------------------------------------------
+        async function loadStarters() {
+            if (!$('homeStarters')) return;
+            try {
+                const {starters = []} = await call('/api/characters/starters');
+                $('homeStarters').hidden = !starters.length;
+                $('homeStartersList').replaceChildren(...starters.map(starter => {
+                    const row = create(doc, 'li');
+                    const info = create(doc, 'div');
+                    const text = create(doc, 'div');
+                    text.append(create(doc, 'strong', {}, starter.name));
+                    if (starter.line) text.append(create(doc, 'p', {class: 'home-muted'}, starter.line));
+                    info.append(create(doc, 'img', {alt: '', loading: 'lazy',
+                        src: `/api/characters/starters/${encodeURIComponent(starter.key)}/portrait`}), text);
+                    const add = create(doc, 'button', {type: 'button', class: 'home-primary', 'aria-label': `Add ${starter.name}`}, 'Add');
+                    add.addEventListener('click', () => addStarter(starter));
+                    row.append(info, add);
+                    return row;
+                }));
+            } catch (_) {
+                $('homeStarters').hidden = true;
+            }
+        }
+
+        async function addStarter(starter) {
+            if (state.busy) return;
+            state.busy = true;
+            $('homeStarters').setAttribute('aria-busy', 'true');
+            $('homeStartersStatus').textContent = `Adding ${starter.name}. Altera checks the card and its pictures first.`;
+            let result;
+            try {
+                result = await call(`/api/characters/starters/${encodeURIComponent(starter.key)}`, {method: 'POST'});
+                $('homeStartersStatus').textContent = `${starter.name} was added.`;
+            } catch (error) {
+                $('homeStartersStatus').textContent = error.message;
+            } finally {
+                state.busy = false;
+                $('homeStarters').removeAttribute('aria-busy');
+            }
+            if (!result) return;
+            await Promise.all([load(), loadStarters()]);
+            finishCard(result);
+        }
+
         // ---- optional voice selection after importing a card --------------------------------------------------------
         function openCardVoice(id, offer, fromSettings = false) {
             state.cardVoice = {id, offer, fromSettings, review: null, busy: false};
@@ -1430,6 +1474,7 @@
         on('companionDialog', 'cancel', event => { event?.preventDefault?.(); closeWriteCompanion(); });
 
         const loaded = load();
+        loadStarters();
         if ($('homeInbox')) {
             loadInbox();
             window.addEventListener('focus', () => loadInbox());

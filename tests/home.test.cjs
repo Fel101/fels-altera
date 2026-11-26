@@ -17,6 +17,7 @@ class Element {
     }
     set innerHTML(_) { throw new Error('The start screen must render text, never HTML'); }
     setAttribute(name, value) { this.attributes[name] = String(value); if (name === 'value') this.value = String(value); if (name === 'name') this.name = String(value); }
+    removeAttribute(name) { delete this.attributes[name]; }
     addEventListener(name, callback) { (this.listeners[name] ||= []).push(callback); }
     append(...children) { this.children.push(...children); }
     replaceChildren(...children) { this.children = children; }
@@ -1003,4 +1004,68 @@ test('saving a pal sends who it is only when it changed, as lists without empty 
         about: 'Upbeat and encouraging.', traits: ['cheerful', 'curious', 'warm'],
         speech_style: {tone: 'bright and friendly', formality: 'casual', humor: 'light jokes', emojis: false},
         interests: ['your wins, big and small'], quirks: ['celebrates small victories']});
+});
+
+function starterPage(answers) {
+    const view = page();
+    for (const id of ['homeStarters', 'homeStartersStatus', 'homeStartersList']) {
+        assert.match(template, new RegExp(`id="${id}"`), id);
+        view.byId[id] = new Element(id === 'homeStartersList' ? 'ul' : 'div');
+    }
+    view.byId.homeStarters.hidden = true;
+    const base = server(), calls = [];
+    const fetchImpl = async (url, init = {}) => {
+        if (!url.startsWith('/api/characters/starters')) return base.fetchImpl(url, init);
+        calls.push({url, method: init.method || 'GET'});
+        const [code, payload] = answers(url, init.method || 'GET');
+        return {ok: code < 400, status: code, json: async () => payload};
+    };
+    return {...view, fetchImpl, calls};
+}
+
+test('starter characters are offered with their pictures, and only Add imports one', async () => {
+    let offered = [{key: 'ottilie-mere', name: 'Ottilie Mere', line: 'A watchful herbalist’s apprentice.'},
+        {key: 'lorraine-malone', name: 'Lorraine Malone', line: ''}];
+    const {doc, byId, fetchImpl, calls} = starterPage((url, method) => {
+        if (method !== 'POST') return [200, {starters: offered}];
+        offered = offered.filter(starter => !url.endsWith(`/${starter.key}`));
+        return [201, {id: 'ottilie-mere', card_id: 'ottilie-mere', card_voice: {}}];
+    });
+    const went = [];
+    const home = load().start({doc, fetchImpl, navigate: url => went.push(url)});
+    await home.loaded; await tick(); await tick();
+    assert.equal(byId.homeStarters.hidden, false);
+    const [first, second] = byId.homeStartersList.children;
+    assert.match(text(first), /Ottilie Mere A watchful herbalist’s apprentice\./);
+    assert.equal(text(second).trim(), 'Lorraine Malone Add');
+    const picture = descendants(first).find(node => node.tag === 'img');
+    assert.equal(picture.attributes.src, '/api/characters/starters/ottilie-mere/portrait');
+    assert.equal(picture.attributes.alt, '');
+    const add = descendants(first).find(node => node.tag === 'button');
+    assert.equal(add.attributes['aria-label'], 'Add Ottilie Mere');
+    assert.deepEqual(calls.filter(call => call.method === 'POST'), []);
+    await add.click();
+    assert.deepEqual(calls.filter(call => call.method === 'POST').map(call => call.url), ['/api/characters/starters/ottilie-mere']);
+    assert.equal(byId.homeStartersList.children.length, 1);
+    assert.equal(byId.homeStartersStatus.textContent, 'Ottilie Mere was added.');
+    assert.deepEqual(went, ['/']);
+});
+
+test('a starter that cannot be added says why and stays offered; with none left the section hides', async () => {
+    const offered = [{key: 'lorraine-malone', name: 'Lorraine Malone', line: 'A crook.'}];
+    const {doc, byId, fetchImpl} = starterPage((url, method) => method === 'POST'
+        ? [400, {error: 'The card’s picture looks younger than 18 (estimated 15), so this character cannot be imported.'}]
+        : [200, {starters: offered}]);
+    const went = [];
+    const home = load().start({doc, fetchImpl, navigate: url => went.push(url)});
+    await home.loaded; await tick(); await tick();
+    await descendants(byId.homeStartersList).find(node => node.tag === 'button').click();
+    assert.match(byId.homeStartersStatus.textContent, /cannot be imported/);
+    assert.equal(byId.homeStartersList.children.length, 1);
+    assert.deepEqual(went, []);
+
+    const empty = starterPage(() => [200, {starters: []}]);
+    const other = load().start({doc: empty.doc, fetchImpl: empty.fetchImpl, navigate() {}});
+    await other.loaded; await tick(); await tick();
+    assert.equal(empty.byId.homeStarters.hidden, true);
 });

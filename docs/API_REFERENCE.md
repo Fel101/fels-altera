@@ -215,6 +215,9 @@ Source: [`companions.py`](../core/routes/companions.py).
 | `POST` | `/api/characters/import` | Multipart `file` accepts CHARX, PNG and JSON character cards. Saves the original and local character, then returns 201 with the opened summary, `card_id` and any `card_voice` offer. Returns 400 for a damaged or refused card, or 413 for an oversized upload. See [Characters](CHARACTERS.md). |
 | `GET` | `/api/characters/inbox` | Lists waiting suite handoffs as `cards` with opaque IDs, sender labels and size problems. |
 | `POST`, `DELETE` | `/api/characters/inbox/<key>` | Explicitly import or dismiss a waiting card by its opaque inbox ID. A refused import returns its reason and leaves the file waiting. |
+| `GET` | `/api/characters/starters` | Lists the starter characters that come with Altera and have not been added: `starters` with `key`, `name` and `line`. |
+| `GET` | `/api/characters/starters/<key>/portrait` | The starter card's portrait as PNG. 404 for a key that is not a starter. |
+| `POST` | `/api/characters/starters/<key>` | Adds a starter by importing its card with the same checks as `/api/characters/import`, and returns 201 like it. Adding one already added returns that character. |
 | `POST` | `/api/characters/<avatar_id>/card-voice` | Send `{"action":"preview"}` to review a ready preset or voice file. Send `{"action":"use","review":"…","permission":true}` to choose the reviewed voice. Embedded files go to local Voice Lab. |
 | `GET` | `/api/characters/<avatar_id>` | A character's settings: `name`, `voice`, `features`, `card_instructions`, `has_instructions`, `lorebook` (on or off), `book` (`{name, entries: [{name, keys, constant, enabled, regex}]}`, without what the entries say), `creator_notes`, `creator`, `spec`. 404 for anyone who is not a character. |
 | `PUT` | `/api/characters/<avatar_id>` | `{voice?, features?, card_instructions?, lorebook?}` changes a character and returns its settings. Other fields (the name included) are 400. |

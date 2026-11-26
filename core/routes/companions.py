@@ -7,7 +7,7 @@ refuses requests that come from another website, like the avatar routes do.
 import logging
 from urllib.parse import urlparse
 
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, Response, current_app, jsonify, request
 
 from core import adult, avatars, companion, companions, forge, notes
 from core.constants import sanitized_error_response
@@ -358,6 +358,35 @@ def take_or_dismiss_card(key):
             return jsonify(ok=True)
         made, notice = card_inbox.accept(services, key)
         return _open_card(services, made["id"], notice)
+    except (characters.CharacterError, companions.CompanionError) as error:
+        return jsonify(error=str(error)), error.status, {"Cache-Control": "no-store"}
+
+
+@bp.get("/api/characters/starters")
+def starter_characters():
+    """The starter characters that come with Altera and have not been added yet."""
+    from core import starter_characters as starters
+    return jsonify(starters=starters.offered(companion.get_services().avatars)), 200, {"Cache-Control": "no-store"}
+
+
+@bp.get("/api/characters/starters/<key>/portrait")
+def starter_portrait(key):
+    from core import characters, starter_characters as starters
+    try:
+        return Response(starters.portrait(key), mimetype="image/png", headers={"Cache-Control": "private, max-age=3600"})
+    except characters.CharacterError as error:
+        return jsonify(error=str(error)), error.status, {"Cache-Control": "no-store"}
+
+
+@bp.post("/api/characters/starters/<key>")
+def add_starter(key):
+    """Add a starter character: its card is imported as a chosen file would be."""
+    if _cross_site():
+        return _forbidden()
+    from core import characters, starter_characters as starters
+    services = companion.get_services()
+    try:
+        return _open_card(services, starters.add(services, key)["id"])
     except (characters.CharacterError, companions.CompanionError) as error:
         return jsonify(error=str(error)), error.status, {"Cache-Control": "no-store"}
 

@@ -2,40 +2,40 @@
 
 Open **Memory** from chat and choose a companion. The page shows only that companion’s memories. **Default companion / legacy shared memories** is a separate scope. Switching this selector does not switch the companion you are chatting with.
 
-- **Remember** on one of your chat messages opens an editable fact and shows the companion receiving it. It saves the message ID and a fingerprint of the source text. You can also add a fact directly on the Memory page.
-- **Sources** shows the original message’s current location and whether the source is current, changed or unavailable. Message IDs survive session splits and merges. Repeated automatic confirmations retain their source links.
-- Automatic extraction reads your own saved messages, in batches, after enough of them have gathered (four by default); it is not tied to a single turn. The companion's replies, imagined scenes and roleplay are never evidence. Each memory keeps links to the messages it came from, so Correct, Forget, Sources and inclusion counts work on it.
-- When the chat model is unreachable or its answer cannot be read, the phrase matcher writes the memories instead. Those are marked **phrase fallback** on Memory and in the report. Rebuild automatic memories asks the model to read the eligible chat again; it falls back the same way if the model is still unavailable.
-- **Correct** records your new assertion as a user correction. It does not pretend that the edited fact came from the old source message.
+- **Remember** on a chat message opens a fact you can edit before saving. You can also add a fact directly on Memory.
+- **Sources** shows the original message and says whether it changed or is missing.
+- Automatic memories come from your saved messages, usually after four new messages. Replies, imagined scenes and
+  roleplay are left out. If the chat model is unavailable, entries made with a simpler check are marked **phrase fallback**.
+- **Correct** lets you replace a fact. Altera marks the new version as your correction.
 - **Forget** removes the chosen memory. **Forget all memories for this companion** affects only the selected companion.
 
 
 Older memories with no tracked source remain visible and are marked for review. They are not supplied as recalled facts until you confirm them through Correct or rebuild automatic memories from the current eligible chat. The app does not invent source links for old entries.
 
-## What she knows about me
+## What is known about you
 
-On Memory, select a companion and choose **What she knows about me**. The report reads saved context directly, without asking a model to summarize it. Download the same report as JSON or Markdown. It includes current memories and their source roles/status/excerpts, notebook text with aggregate provenance, recall/repair state, bounded conversation-history candidates and applicable mood/legacy context.
+On **Memory**, select a companion. Under **What is known about you**, choose **Show current report**. The report reads
+saved memories, notes and messages directly. It shows where the saved facts came from and which chat messages Altera
+can still use in a reply. You can download the same report as JSON or Markdown.
 
-Conversation candidates use the same recall boundary, compaction window and accepted-check-in validity filter as ordinary chat. An invalidated accepted check-in can remain visible in the conversation but is not listed as a prompt candidate. The report checks this without recovering interrupted presence jobs.
+**Eligible** means Altera could use an item in a reply. Which items it uses depends on the message and the amount
+of text that fits. **Current** means the source message still matches what Altera recorded. Check the source if
+a fact looks wrong. Notes may mix your edits with older summaries, and their sources describe the latest update.
 
-**Eligible** means the app permits an input; semantic search, compaction and token budgeting determine what a particular reply receives. This is not a transcript of the prompt sent to a model or a claim about a model's internal knowledge. A current source proves the message still matches its recorded fingerprint, not that extraction interpreted it correctly. A fact explicitly saved from an assistant message is labelled with that source role rather than presented as something you said.
-
-Notebook entries can include manual edits and older derived material. Their source range describes the latest update, not citations for every statement. The report keeps this limitation visible. The default persona's older shared callbacks/moods are distinguished from source-linked memories; other companions' records and machine settings are excluded. Global profile/event/relationship stores are not presented as normal scoped chat facts. Unassigned legacy conversations remain under Default ownership in the report even if an older chat fallback can temporarily use an active persona; normal companion migration assigns those chats.
-
-Reports briefly reserve a consistent read window. If replies, notes, pictures or another request are active, wait and retry after a 409 response. Downloads contain private plaintext and are separate from restore archives. The report's source-content reads do not change the recall boundary or repair knowledge.
-
-Chat and notebook prompts now require evidence for personal facts and shared history, preserve uncertainty and prefer your explicit corrections. Imagined scenes, generated pictures and earlier assistant guesses are not treated as evidence of real events. These instructions reduce unsupported recall; they do not guarantee that a model will never make a mistake.
+If a report says Altera is busy, wait for the reply, notes or picture to finish, then try again. Downloads contain
+private text anyone with the file can read. [How Altera chooses context](ARCHITECTURE.md#context-and-knowledge)
 
 ## What correction and forgetting change
 
 Correction and forgetting clear the companion’s notebook, including manual note text and note history. They also set a fresh recall boundary across this companion’s conversations: earlier chat stays visible in the app but is no longer sent to the model. The confirmation explains this before you apply it. Other saved memories remain; still-valid memories retained before a boundary also survive later repairs.
 
 
-Correction needs the configured local memory embedding model. Altera prepares the replacement embedding before changing the recall boundary or notebook; if local assets are unavailable, the saved memory and notebook remain intact. If a later vector write fails, the outcome may be uncertain and knowledge remains paused; the notebook may already have been cleared. Review the saved state before retrying. The local embedding adapter does not download a model or use a cloud fallback.
+Correction needs the local memory model. If Altera says it is missing, install it and try again.
+[Install the memory model](SETUP.md#the-memory-and-microphone-models)
 
 This prevents a forgotten fact from being immediately read back from the old conversation or an older notebook. The source conversation, pictures, other memories, downloaded exports and saved backups are not erased by forgetting one memory. Other copies of the same information can still exist in those places. Default-persona legacy callbacks are cleared or excluded after a recall reset because they have no source links.
 
-New messages after the boundary can be remembered normally. The configured memory embedding function is used when saving or rebuilding vector memories; no cloud fallback is introduced by these controls.
+Altera can remember new messages normally after the change.
 
 ## When conversation text changes
 
@@ -43,9 +43,9 @@ Editing, deleting or replacing a message pauses derived memories and notes for i
 
 Rebuilding asks the chat model to read the current eligible chat again, in batches, and write the automatic memories afresh. It runs in the background: chatting carries on, and derived memories and notes stay paused until it finishes. If the chat is edited while the model is reading, they stay paused and Memory asks for another rebuild. With the model unreachable it falls back to the local phrase matcher, and those memories are marked as such. Rebuilding never asks the model to rewrite your own added or corrected facts. The notebook is subsequently written afresh through the normal notes workflow. Notebook source details distinguish conversation ranges, user edits and earlier notes whose sources were not recorded.
 
-Active replies and note writers must finish before a memory mutation can run; an active-work conflict returns 409 rather than queueing the operation. New requests are paused during the mutation. If a file or memory write fails, the operation is not reported successful; derived knowledge remains paused for repair.
-
-The per-companion notebook cleanup used by correction and Forget checks the companion and notebook directories and plans a bounded tree before removing files. Links, reparse points, hard-linked files, unexpected file types, excessive nesting or changed entries stop the operation. A filesystem change or removal error after cleanup begins can leave a partially removed notebook; keep the affected files and review the paused knowledge state before retrying. These checks do not protect against every concurrent same-account filesystem change or securely erase old disk blocks and backups.
+Wait for any reply or notes update to finish before changing a memory. If a correction or removal fails, review
+what remains before retrying. Automatic memories may stay paused for repair.
+[Notebook removal checks](SAFETY.md#local-access-and-data)
 
 Conversations belonging to different companions cannot be merged. Splits retain ownership, message IDs and timestamps. Split/merge operations retire old request replay copies and pause derived knowledge for repair.
 

@@ -188,7 +188,7 @@ Photo metadata returned by creation, lookup, listing and reuse includes `provena
 
 The camera and both shared-scene endpoints return `422` with `blocked: true` for a pal in kids mode. An earlier recipient review does not override the current setting.
 
-The shared-scene context body contains `session_id`, `avatar_id` and `dataset_epoch`; it returns vision endpoint/model, image endpoint and an opaque recipient fingerprint. Submit those scope fields plus `request_id` (`shared_` and 32 lowercase hex digits), `scene`, base64 `reference_png`, `provider_fingerprint`, and true `self_reference`, `adult_confirmation` and `provider_confirmation`. The fingerprint must still match before a provider is contacted; accepted work retains the reviewed targets. A matching retry attaches the same conversation marker and does not regenerate. A removed or edited marker cannot be recreated by retry. Pending work must finish before its image or session can be deleted. The original reference is not retained by Altera, but configured providers may retain the submitted copy. See [the image guide](AVATARS.md) for bounds and limits.
+The shared-scene context body contains `session_id`, `avatar_id` and `dataset_epoch`; it returns vision endpoint/model, image endpoint and an opaque recipient fingerprint. Submit those scope fields plus `request_id` (`shared_` and 32 lowercase hex digits), `scene`, base64 `reference_png`, `provider_fingerprint`, and true `self_reference`, `adult_confirmation` and `provider_confirmation`. The fingerprint must still match before a provider is contacted; accepted work retains the reviewed targets. A matching retry attaches the same conversation marker and does not regenerate. A removed or edited marker cannot be recreated by retry. Pending work must finish before its image or session can be deleted. The original reference is not retained by Altera, but configured providers may retain the submitted copy. See [image checks](SAFETY.md#image-checks) for limits.
 
 
 ### Companions and NPC Forge
@@ -220,8 +220,8 @@ Source: [`companions.py`](../core/routes/companions.py).
 | `PUT` | `/api/characters/<avatar_id>` | `{voice?, features?, card_instructions?, lorebook?}` changes a character and returns its settings. Other fields (the name included) are 400. |
 | `DELETE` | `/api/companions/<avatar_id>` | Remove companion and owned data. |
 | `GET` | `/api/companions/<avatar_id>/notes` | Read notebook and provenance. |
-| `PUT` | `/api/companions/<avatar_id>/notes` | The person corrects what she wrote. |
-| `POST` | `/api/companions/<avatar_id>/notes/update` | Ask her to write up the conversation so far now. |
+| `PUT` | `/api/companions/<avatar_id>/notes` | Correct the companion's notes. |
+| `POST` | `/api/companions/<avatar_id>/notes/update` | Ask the companion to write up the conversation so far. |
 | `GET` | `/api/companions/<avatar_id>/status` | Notebook/gallery background status. |
 | `POST` | `/api/companions/<avatar_id>/pictures/sync` | Fetch the pictures approved in NPC Forge's studio (in the background). |
 | `GET` | `/api/forge/status` | Source reachability, `meet_supported`, Modern life `options` for Meet and `meet_message` when the Forge version or setting prevents rolling. Also lists portrait `styles`, `settings`, `engines` and `default_engines`. |

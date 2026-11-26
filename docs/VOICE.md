@@ -2,9 +2,9 @@
 
 The chat microphone transcribes and sends a message in the current conversation. **Voice notes** saves a recording first; upload, transcription, transcript review and Send are separate actions.
 
-Voice status checks do not start or restart a speech service. Configured app startup and actual speech requests can still queue autostart. Kokoro requests go directly to the configured endpoint, refuse redirects and bound returned metadata/audio; a remote configured endpoint is labelled **configured server**. See [startup and transport](VOICE_TRANSPORT.md) for limits and fallback behavior.
-
-Voice settings also report when the configured local transcription model is missing or incomplete. The check reads the local cache without loading a model or downloading files. Finding the expected files does not prove they are valid or that transcription will succeed. The microphone button remains available for interrupting speech when the recognition model is missing; transcription still needs the configured assets.
+Voice settings show whether your speech service and microphone model are ready. If the microphone model is
+missing, use [Setup](SETUP.md#the-memory-and-microphone-models) to install it. You can still use the microphone
+button to interrupt speech. [How speech connects to its service](VOICE_TRANSPORT.md)
 
 ## A local voice
 
@@ -31,18 +31,13 @@ separately, because it needs PyTorch, which Altera's own environment does not ha
 Microsoft's online voice sends spoken text to Microsoft and is selected in `config.yaml` with
 `voice.tts_engine: edge` and `voice.tts_enabled: true`. Microsoft speech is available under the core content setting.
 
-The service listens on `127.0.0.1:8770` only and refuses requests a web page could send it. It runs on the CPU by
-default. Measured once, on a 16-core PC with an AMD ROCm build of PyTorch: a 4-second sentence took about 10 seconds to
-make, so speech starts a few seconds after the text. The standard CPU build that setup installs has not been timed. A GPU
-is opt-in: set the environment variable `ALTERA_VOICE_DEVICE` to `cuda` before starting Altera. Some GPU builds of
-PyTorch crash on Kokoro (the ROCm build on Windows did), which is why CPU is the default. More voices: run
+Kokoro runs on the CPU by default. Speech can start a few seconds after the text. A GPU is optional. Set
+`ALTERA_VOICE_DEVICE` to `cuda` before starting Altera if you have a working GPU build of PyTorch. If it crashes,
+switch back to the CPU. To install more voices, run
 `voice\.venv\Scripts\python.exe voice\serve.py --download --voices af_aoede,bf_lily` and choose one in Settings.
 
-Until it is installed, the voice status says **not installed** and how to install it. Another compatible service can
-be used instead: set `voice.kokoro.python` and `voice.kokoro.script` to start it, or point `voice.kokoro.url` at one
-you run yourself. It needs `GET /api/info` (`{"loaded": ["kokoro"]}` once ready) and `POST /api/speak` (JSON
-`{"text", "voice", "speed"}`, answered with a WAV), and to accept `--port`, `--idle-minutes`, `--preload` and
-`--parent-pid` if Altera starts it.
+If the voice status says **not installed**, follow the setup steps above. For another compatible service, see
+[Voice startup and transport](VOICE_TRANSPORT.md).
 
 ## Interrupting a reply
 
@@ -86,21 +81,5 @@ Recordings capture their session, companion, dataset identifier, knowledge revis
 Recordings, transcripts and reply clips use unencrypted PC/browser storage. Delete notes explicitly to remove copies; failed removal can require retry. Deleting a linked message removes its server attachment too. Session deletion, companion removal and Clear data clear the relevant server recordings. Corrections and Forget invalidate queued use; original visible recordings, downloads and backups remain until managed separately. Other browsers/devices retain their own originals.
 
 Server backups include uploaded note rows and files. Restored notes become stale and never resume transcription or sending automatically. Browser-only recordings are not included in server backups; download originals before clearing browser storage or moving devices.
-
-## Verification limits
-
-Altera-owned voice-service startup now retains its launch handles and log reader through cooperative parent-exit shutdown. Stop can remain pending while a service or inherited output pipe is still closing; an independently running speech server is never adopted or stopped.
-
-Isolated tests exercise PCM/WAV pre-roll, detector boundaries, ownership, source changes, persistence, offline retries, review revisions, retained audio and storage failures with fake transcription/chat. A native CPU smoke check verified that installed Silero rejects synthetic silence. These checks do not establish real microphone accuracy, echo rejection, recognition or voice quality on your hardware. Those remain to be checked on real devices; the [companion roadmap record](history/COMPANION_ROADMAP.md) lists them.
-
-A separate November 8 synthetic check ran the installed Kokoro model on CPU using cached weights, with Python network connections blocked and downloads disabled. It produced a non-silent WAV without playing it. A disposable loopback fixture then supplied those exact bytes to Altera's speech transport and cache. This does not exercise the actual voice service, a microphone, playback, recognition or audible quality; those remain open.
-
-A later isolated ordinary voice-note API check uploaded that synthetic speech and explicitly transcribed it with a copied locally cached `tiny` Whisper model, with Python socket connections blocked. It confirmed a reviewable transcript and that upload alone did not load the model. This is not a real microphone, phone, noisy-speech or audio-quality test; native libraries' network behavior is outside the Python socket guard.
-
-Another isolated check carried the synthetic recording through review, a stubbed chat reply, an owned copied Kokoro service, saved reply audio and the replay endpoint. It removed only the generated temporary cache copy in the disposable instance, then confirmed the retained WAV was still returned and a repeated request did not duplicate the conversation. The [release checklist](history/ORDINARY_RELEASE_ACCEPTANCE.md) links the source/model-bound receipt and records what remains untested.
-
-A subsequent isolated check exercised a copied Kokoro voice service and worker with cached Kokoro files and Altera's actual speech transport: the service synthesized one synthetic sentence and Altera cached the resulting WAV. The owned service closed afterward. This check used a disposable service copy and did not play the clip or test a microphone, interruption, recognition, sound quality or the configured live service.
-
-An offline synthetic check also submitted the generated WAV to Altera's speech-to-text route using a copied small Whisper cache. It returned the expected test sentence. This verifies one clean synthetic clip, not microphone capture or recognition accuracy in ordinary use.
 
 [User guide](README.md) · [API](API_REFERENCE.md) · [Memory controls](MEMORY_CONTROLS.md) · [Backup and restore](BACKUP_AND_RESTORE.md)

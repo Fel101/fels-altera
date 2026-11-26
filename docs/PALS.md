@@ -6,7 +6,7 @@ you.
 
 ## Making a pal
 
-On **Home** (`/home`), choose **Make a pal** (on the Pals tile's empty note, or beside the Pals gallery). Give it a name
+On **Home** (`/home`), choose **Make a pal** (on the Pals tile's empty note, or beside the Pals gallery). Give them a name
 (up to 40 characters), pick a vibe and a voice, and choose **Make pal**. The chat opens and the pal says hello.
 
 - **Vibes** are YAML presets shipped in `content/pals/` (Sunny, Chill, Witty, Thoughtful, Geeky). Each has the same shape
@@ -30,8 +30,7 @@ pretending to remember. Change the switches, the name or the voice with **Settin
 
 ## Changing who a pal is
 
-The vibe is only where a pal starts. On Home, **Settings** under the pal → **Who they are** has everything the vibe
-gave it, to change as you like:
+The vibe is where a pal starts. Open their **Settings** on Home and choose **Who they are** to change the details.
 
 - **About**: a sentence or two about them (up to 400 characters).
 - **Traits**, **Interests** and **Quirks**, one per line (up to 8 traits, 8 interests and 6 quirks; a line may hold a
@@ -43,7 +42,7 @@ to the topics kids mode allows. Something too long or too many is refused with w
 without saying so. The change is saved to the pal's `pal.yaml` and the next reply uses it. The vibe's own file in
 `content/pals/` is not changed, so another pal made from it starts as before.
 
-A pal can also have its own temperature and reply length: see [Reply settings](REPLY_SETTINGS.md).
+A pal can also have their own temperature and reply length. [Reply settings](REPLY_SETTINGS.md)
 
 ## Where a pal lives
 
@@ -53,13 +52,10 @@ opened the change is picked up. A file that no
 longer parses, or breaks the same hard content rules as every avatar card, is ignored and the pal stays as it was.
 `avatar.json` beside it is the copy the rest of Altera reads (`"kind": "pal"`).
 
-Because pals live under `data/`, backups, restore and **Remove** cover them exactly as they cover companions. (The plan
-called for `content/pals/`; that folder holds the shipped vibes instead, because backups only carry a fixed list of
-preference files outside `data/`, and a pal kept there would not survive a restore with its chat.)
+Backups and restore include each pal along with their chat. To delete a pal, use **Remove**.
 
-A pal starts with no portrait: the picture shows its initial on a colour chosen from its id. NPC Forge can paint it one
-from a description, and then bring it to life, from the pal's settings on Home: see [Portraits](PORTRAITS.md). **Play a
-sample** beside the voice list says a short line in that voice.
+A pal starts with their initial in place of a portrait. In their settings on Home, add a picture or ask NPC Forge
+to paint and animate a portrait. [Portraits](PORTRAITS.md)
 
 A pal can be put in [kids mode](KIDS_MODE.md), a guardrail for a pal a child talks to, once kids mode has been set
 up on Home.

@@ -11,19 +11,16 @@ beside the Characters gallery) and pick the file. When NPC Forge sends a card, H
 **Dismiss**. A failed card stays in the inbox so you can read the reason or dismiss it. Imported and dismissed files go
 to the Windows Recycle Bin or are deleted on other systems. The chat opens with the card's first message.
 
-- **CHARX cards** contain a V3 card and its embedded assets. Altera copies supported PNG assets, including the main icon,
-  the full-body sprite, expressions and any living portrait that matches the portrait's SHA-256. It uses NPC Forge's
-  sheet for details such as age, occupation, traits and manner of speaking. Home shows the card's licence rating and
-  AI-generated label when supplied.
-- **PNG cards** carry the card in a text chunk (`chara` for V1/V2, `ccv3` for V3, `tavernCardV2` is also read; `tEXt`,
-  `zTXt` and `iTXt` chunks all work). When a PNG has more than one, the V3 card wins. The picture becomes the
-  character's portrait, with the card text stripped out of it.
-- **JSON cards** are the card on its own. The portrait is the character's initial on a colour chosen from its id.
+- **CHARX cards** can include a portrait, a full-body sprite, expressions and a living portrait. Altera can also use
+  NPC Forge's character sheet for details such as age and way of speaking. Home shows the supplied licence rating and
+  AI-generated label.
+- **PNG cards** keep the character inside the picture. The picture becomes their portrait.
+- **JSON cards** hold the character's text. Home shows their initial until you add a portrait.
 - A character can get a portrait from NPC Forge later, redrawn from the card's picture or painted from a description,
   in the character's settings on Home: see [Portraits](PORTRAITS.md). The card's own picture is kept to go back to.
-- CHARX limits are 100 MB for the archive and for its expanded contents, 500 members, and 20 MB per member. PNG cards
-  are limited to 20 MB, card JSON to 2 MB, and images to 8192 pixels on each side. Altera refuses a damaged card, a card
-  with no name or character text, a card that breaks the hard content rules, or a portrait that the age check reads as under 18.
+
+If a card fails to import, the app shows the reason. Check that it contains a name and a fictional adult character.
+[Card size limits and checks](SAFETY.md#character-cards)
 
 Altera saves the original in `data/characters/` and the local character record and pictures under `data/avatars/`.
 Backups cover both locations. **Remove** deletes them.

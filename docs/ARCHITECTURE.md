@@ -1,6 +1,6 @@
 # Altera architecture
 
-Overview reviewed against the working source on 2026-10-28. [plan.md](history/plan.md) records earlier implementation phases. [API reference](API_REFERENCE.md) and [storage schema](Database_Schema.md) describe the corresponding interfaces.
+The [API reference](API_REFERENCE.md) and [storage schema](Database_Schema.md) describe the corresponding interfaces.
 
 ## Runtime and paths
 
@@ -130,7 +130,7 @@ Workspace tools restrict file access, exclude private paths and secrets, write o
 
 The PWA caches application assets only. It does not cache private HTML, APIs, generated speech or pictures. IndexedDB drafts still contain private text locally. Local providers keep inference local; cloud providers, Edge speech and web tools send content to their services. There is no automatic chat-provider fallback. The optional speech fallback is visible and blocked in adult mode.
 
-Content checks run independently of model prompts. The vision age check estimates apparent age. Add-on routes share the application access guards, and a registered picture engine must pass the core age check before its output is saved. The core app starts with its everyday content policy. [The image guide](AVATARS.md) describes the checks.
+Content checks run independently of model prompts. The vision age check estimates apparent age. Add-on routes share the application access guards, and a registered picture engine must pass the core age check before its output is saved. The core app starts with its everyday content policy. [How Altera keeps things safe](SAFETY.md) describes the checks.
 
 ## Configuration, diagnostics and verification
 

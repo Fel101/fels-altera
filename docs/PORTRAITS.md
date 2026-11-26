@@ -2,7 +2,7 @@
 
 [NPC Forge](https://github.com/Fel101/fels-npc-forge) is an optional app that paints portraits from descriptions and creates characters with personalities. In Altera, you can make a pal, import a character card, or write a companion yourself and upload a picture for any of them.
 
-A pal starts with no picture (Home shows its initial), a character has its card's picture or none for a `.json` card, and a
+A pal starts with no picture (Home shows their initial), a character has their card's picture or none for a `.json` card, and a
 companion written in Altera has none until one is uploaded or painted. Each of them can get a portrait three ways, under
 **Portrait** in their **Settings** on Home: an uploaded picture, a character already in NPC Forge's library, or a new one
 NPC Forge paints. Companions imported from NPC Forge already have their portrait from their source character, so the
@@ -31,16 +31,11 @@ On **Home**, open **Settings** under the pal or character, and choose **Make a p
 
 - **Paint it from the card's picture** (characters with a picture only): the card's picture is sent to NPC Forge as the
   photo it redraws. The face is kept and the rest is redrawn in the art style you choose.
-- **Paint it from a description**: the words in **How they look** are all NPC Forge draws from, led by "a grown
-  adult" (a cartoon from a few words can otherwise come out looking like a child). From NPC Forge's API 44 Altera asks
-  for an adult character and NPC Forge leads the picture with "a grown adult woman" or "man" itself; before that, Altera
-  adds the words. The whole name is the character's name there, with no surname rolled after it, and its gender comes
-  from the description unless one is chosen. For a character the box
-  starts with the sentences of the card that say how they look (hair, eyes, clothes and so on), picked out as written.
-  **Ask the model to write it** has the chat model write a short description from the card instead (its creator's notes
-  are never sent). For a pal, you write it.
-- **Art style** and **Setting** are NPC Forge's own. Every setting is offered except the adult "Models" one, which is
-  only for companions. **Gender** leads the description when its words do not say one.
+- **Paint it from a description** uses **How they look** to guide the portrait of a fictional adult. For a character
+  the box starts with the card's description. **Ask the model to write it** asks your chat model to draft a shorter one.
+  For a pal, write the description yourself.
+- Choose an **Art style**, **Setting** and, if you want to specify it, **Gender**. The gender follows the
+  description until you choose one.
 
 NPC Forge has to be running, with ComfyUI. If it is not, the dialog says so and offers **Start NPC Forge**, which waits up
 to a minute for it to answer. Painting takes a minute or two, and you can close the dialog and keep going: the portrait
@@ -66,17 +61,9 @@ Leaving an engine on NPC Forge's default follows whatever NPC Forge is set to, t
 
 - NPC Forge makes a character of its own in its library and paints it, so you can keep working on that character in NPC
   Forge. Altera only reads NPC Forge's library; it never writes there.
-- The portrait goes through the age check before it is used, like every picture. One that reads as under 18 is refused and
-  not used, and the dialog says so. One the check could not look at (no vision model answered) is used and marked
-  unchecked, the same rule as for a companion's portrait, and the settings say **Not age-checked yet**.
-- An unchecked portrait (a Forge portrait, or a card's own picture imported while the model was not running) is checked
-  later, in the background, one at a time: when Home lists everyone, when the pal or character is opened, or when their
-  settings open. One adult reading passes it. Because the model's estimate can swing between looks at the same picture,
-  one already in use is taken down only when two readings say under 18 (a third look settles a split): a character goes
-  back to its card's picture if that passed the check, and otherwise to the initial (an under-age card picture is not kept
-  to go back to; the card file saved at import is). The settings then say **The
-  last portrait was taken down** with the age the check read. When the model gives no answer, the check is tried again
-  ten minutes later.
+- The vision model checks how old the person appears. If settings say **Not age-checked yet**, start your vision model
+  and reopen Home or the person's settings. A portrait that reads as under 18 is refused or taken down. Altera shows a
+  previously passed card portrait or the person's initial. [Image checks](SAFETY.md#image-checks)
 - The card's own picture is kept beside it (`card_picture.png`). **Use the card's picture again** goes back to it, and
   for a pal or a `.json` card **Remove the portrait** goes back to the initial.
 - The card's text stays what the character is: only the picture comes from NPC Forge.
@@ -111,10 +98,7 @@ Ollama holds the card, Altera can ask the local model servers to unload and wait
 Set `companion.forge.unload_llm: false` to do that yourself. If ComfyUI or another program holds the card, the dialog
 says which program needs attention. Altera makes one recovery attempt per portrait if the GPU becomes busy during a job.
 
-The Gender menu follows the description until a gender is chosen. Ages NPC Forge rolled for a freeform character are
-labelled as guesses in Altera, separately from the portrait age check.
-
-The age check asks the vision model to look at every new portrait and living frame.
+When NPC Forge guesses an age for a character, Altera labels it as a guess. The picture has its own age check.
 
 With an NPC Forge older than API 44 nothing is asked first. A step the GPU was refused for is read from NPC Forge's error
 text, and Altera stops the job there, since every later step would be refused the same way.

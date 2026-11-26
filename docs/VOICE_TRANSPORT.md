@@ -38,4 +38,9 @@ Complete Python regression: **2,080 passed, 11 platform skips, one existing Open
 
 External server storage, engine descendants, full native filesystem coverage, actual microphone/TTS quality and device acceptance remain unfinished. No installed speech engine, model or microphone is used in these tests. No dependency is installed or upgraded, live Altera restarted, personal data migrated or source published. The full companion roadmap remains active, with local Git only.
 
-[Voice guide](VOICE.md) · [API](API_REFERENCE.md) · [Companion roadmap (record)](history/COMPANION_ROADMAP.md)
+For a compatible service you start yourself, set `voice.kokoro.url`. To let Altera start it, configure
+`voice.kokoro.python` and `voice.kokoro.script`. The service needs `GET /api/info` (`{"loaded": ["kokoro"]}` once
+ready) and `POST /api/speak` (JSON `{"text", "voice", "speed"}` with a WAV response). An Altera-owned service also
+accepts `--port`, `--idle-minutes`, `--preload` and `--parent-pid`.
+
+[Voice guide](VOICE.md) · [API](API_REFERENCE.md)

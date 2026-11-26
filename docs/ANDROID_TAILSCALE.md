@@ -38,9 +38,9 @@ tailscale serve status
 
 Tailscale handles the HTTPS certificate. Use the full `https://...ts.net:8443/` address on the phone so microphone and home-screen browser features are available. This setup uses **Serve**, which is private to the tailnet. Existing endpoints on other ports are retained. No router port forwarding or public Funnel endpoint is needed.
 
-Serve supplies the `Tailscale-User-Login` identity header. Altera accepts remote requests only for an allowed login, the configured host and HTTPS proxy connection. Identity headers must only be trusted with the backend listening on loopback. Tagged devices without a user identity are denied. Local `localhost`, `127.0.0.1` and `::1` browser access continues to work.
-
-Remote access is refused when the remote settings are disabled or missing, even if the Serve endpoint is still configured.
+Altera checks the phone's Tailscale login against the list you entered. Keep the PC address set to `127.0.0.1`.
+If Altera's remote access is off, turn it on in the local configuration before trying from the phone.
+[How Altera checks access](../SECURITY.md#what-altera-is-built-for)
 
 
 ## Stop or Restart
@@ -65,7 +65,7 @@ Altera itself runs separately from Tailscale. If launched in a terminal, stop it
 | Microphone unavailable | HTTPS address, Chrome microphone permission and Android microphone permission |
 | No voice | Altera's voice toggle, phone media volume and PC voice-service status; Android may require a tap before playing audio |
 | Reconnecting while internet works | Tailscale may be disconnected, the PC asleep or Altera stopped; the app probes Altera rather than relying only on internet status |
-| Old interface after an update | Reopen the app and reload; Altera now registers `/sw.js` with root scope and removes its older `/static/` registration |
+| Old interface after an update | Close Altera's other tabs, reopen the app and reload |
 
 Workspace reads and writes still act on the PC, with writes confined to `workspace/`. Phone file/photo uploads, Android notifications and background voice conversations are separate capabilities; Tailscale alone does not add them.
 

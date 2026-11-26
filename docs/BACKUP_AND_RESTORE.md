@@ -1,10 +1,15 @@
 # Backup and restore
 
-Open **Settings > Privacy & Data > Backup and restore**. New backups default to an authenticated encrypted `.alterabak` archive. Download a copy to another drive; copies kept only in this instance's `backups/` directory cannot protect against losing that drive.
+Open **Settings → Privacy & Data → Backup and restore**. Altera makes a password-protected `.alterabak` file by default.
+Download a copy to another drive so you can recover your chats if this drive fails.
 
-A backup contains conversations and reply records, server-saved voice notes/audio, vector memories with embeddings, companion cards/portraits, approved pictures, notebooks, episodes/reflection records, workspace text and application preferences. A backup made in chat includes this browser's appearance preferences and unsent text drafts. Browser-only voice recordings and other devices' browser storage are not included; download recordings separately or, for the optional private page, use its separately encrypted browser-data export and key recovery workflow. API credentials, remote-access policy, the signing key, private-worker runtime receipts, raw vector-database files, logs, caches and temporary uploads/recordings are excluded. Archives that try to replace a protected worker receipt are refused during preview.
+A backup contains conversations, saved voice notes, companions, pictures, memories, notebooks, saved moments,
+workspace text and preferences. A backup made in chat also includes this browser's look and unsent text drafts.
+Download recordings that are still only in the browser separately. Keep a separate copy of any data you need
+from another browser. API keys and remote-access settings stay on this PC.
 
-If the interface asks you to restart Altera, its running server does not advertise the required backup API. Creation and restore stay disabled; saved backups can still be downloaded. The UI uses dedicated versioned mutation URLs so an older or rolled-back server cannot silently ignore the encryption fields. No automatic restart or legacy mutation fallback occurs.
+If the backup screen asks you to restart Altera, you can still download saved backups. Restart before creating
+or restoring a backup.
 
 ## Create and keep an encrypted backup
 
@@ -14,27 +19,28 @@ If the interface asks you to restart Altera, its running server does not adverti
 
 The password or the applicable recovery key can open the archive. An archive without a recovery-key slot requires its password. Losing both credentials makes it unrecoverable; there is no reset or server-held bypass. A lost create response may leave a saved archive without displaying the optional key; the password still works. Review saved backups before creating another copy.
 
-The encrypted file protects its manifest, filenames and payload. Its approximate size, timestamp, encryption profile and recovery-slot presence are public metadata. Saved-backup listings hide encrypted content counts until unlock. The envelope uses a fixed bounded Argon2id profile and libsodium authenticated streaming through pinned PyNaCl; see the [format specification](ENCRYPTED_BACKUP_FORMAT.md). Local tests/review do not constitute an independent cryptographic audit.
+Someone with the encrypted file can see its size, date and whether it has a recovery-key option. They need the
+password or key to see the files inside. [Encrypted backup format](ENCRYPTED_BACKUP_FORMAT.md)
 
 Unchecking encryption explicitly creates a **plaintext ZIP**; anyone with it can read its contents. Earlier ZIP backups still work and are not automatically converted. JSON/Markdown/PDF reports also remain plaintext exports.
 
 ## Restore
 
 1. Enter the archive password or select **Recovery key**, then choose **Preview restore** beside the saved archive. For an uploaded file choose it first, then **Preview selected backup**. Select **Plaintext ZIP - no unlock secret** for an older ZIP.
-2. Review validated counts and the replacement notice. Authentication and preview do not replace application data. Corrupt, truncated or wrong-key archives cannot publish a partial restore; successfully decrypted ZIPs still undergo ordinary path/schema/manifest validation.
+2. Review what the backup will replace. You can stop after previewing and keep using your current data.
 3. Leave **Restore service connections and model/voice settings** off to keep this PC's connections. Enabling it can switch the model or speech to a cloud service; the preview identifies the selected provider, model host and speech fallback. Existing API keys, remote access and workspace-tool permissions are preserved.
 4. Choose and confirm a **Recovery-backup password** for the copy of the data about to be replaced. Record this separately too. An encrypted source always requires an encrypted recovery backup. An explicitly selected plaintext source can also use an explicitly selected plaintext recovery ZIP.
 5. Check the replacement acknowledgment and choose **Restore this backup**. Altera saves that recovery archive first, then replaces data and reloads. Optional content settings return off.
 
-Unlock credentials remain only in the open dialog and are sent again when applying an unapplied restore, including after a server restart. Changing the file, unlock method/secret or connection choice invalidates the preview. Changing the recovery-copy password resets the acknowledgment. Closing clears all credential inputs and the displayed one-time key. Close/Escape is disabled during create/apply; closing a read-only preview does not cancel an already submitted server mutation.
+If you change the file, password, key or connection settings, preview again before restoring. Closing the dialog
+clears its password and key fields. The dialog stays open while making or restoring a backup.
 
-A successfully applied token returns its saved application receipt on retry without decrypting or replacing data again. This is transport idempotence in an already open app, not a separate archive authentication mechanism. Credentials are never stored in preview metadata, receipts, URLs or logs. Browser preference/draft data in a receipt remains private instance data.
+If Altera reports a cleanup error, check **Saved backups** and follow any recovery instructions before retrying.
+The backup or restore may have finished before the error. Restart after the previous Altera process has stopped.
 
-If Altera reports that backup cleanup could not be confirmed, it stops accepting new work in that process. An archive or restore may already have been published before the cleanup error, so review Saved backups and any recovery instructions before retrying. After a committed restore, its receipt remains available. Restart only after Altera has stopped.
+Wait for replies, pictures and note updates to finish before backing up or restoring.
 
-Wait for active replies, pictures, notes and requests before snapshot/replacement. Altera coordinates one server process; do not run another server or external writer against the same instance. A busy crypto operation returns 409 rather than starting another concurrent memory-hard derivation.
-
-After restore, older tabs cannot mutate the replacement dataset. Reload and use **Review drafts**. Restored, legacy and stale drafts remain unsent until explicitly placed in the composer and sent.
+After restoring, reload any older tabs and use **Review drafts** before sending them.
 
 ## Interrupted restore and recovery
 
@@ -55,6 +61,16 @@ Limits are 2 GiB for the inner compressed ZIP, 8 GiB expanded and 100,000 files.
 Presence/reflection preferences, jobs, inbox/derived notes and story curation are included in SQLite. Restore pauses unattended work, clears expression and marks derived sources stale. Retained story pins/curation require explicit matching-source review; no restored material can bypass a later Forget boundary. See [Our story](OUR_STORY.md) and [check-ins](PRESENCE.md).
 
 ## API
+
+Restore previews validate the archive and reject damaged files, invalid paths and protected worker receipts before
+changing data. The backup excludes credentials, remote-access policy, the signing key, private-worker runtime
+receipts, raw vector-database files, logs, caches and temporary uploads. Private-page browser data, when available,
+has a separate encrypted export.
+
+The dialog clears passwords and recovery keys when closed. Unapplied restores require the credential again.
+Altera keeps credentials out of preview metadata, receipts, URLs and logs. A retry of an already applied restore
+returns the saved receipt without replacing the data again. Versioned backup mutation URLs prevent older servers
+from ignoring the encryption fields.
 
 All backup responses are `no-store` and `nosniff`. Secrets belong in request bodies only. An API call without a format uses encrypted creation/recovery; plaintext requires the explicit `zip` choice. JSON requests use the app's normal request-size limit and reject duplicate fields and non-finite numbers; only multipart restore previews receive the larger archive-upload allowance. Unknown-length or terminated-stream JSON that reaches the configured limit is refused because its completeness cannot be established. Browser snapshots must fit the 8 MiB restore-preview limit when encoded as UTF-8.
 

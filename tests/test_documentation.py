@@ -8,19 +8,58 @@ import pytest
 from core.app import create_app
 
 ROOT = Path(__file__).resolve().parent.parent
+FENCE = re.compile(r'^ {0,3}(`{3,}|~{3,})(.*)$')
+HEADING = re.compile(r'^ {0,3}#{1,6}\s+(.+?)(?:\s+#+)?\s*$')
+MARKDOWN_LINK = re.compile(r'\[[^\[\]\n]*\]\(\s*(<[^>\n]+>|[^\s)]+)(?:\s+"[^"]*")?\s*\)')
+HTML_LINK = re.compile(r"""<(?:a|img)\b[^>]*?\s(?:href|src)=["']([^"']+)["']""", re.I)
+
+
+def _outside_fences(text):
+    fence = None
+    for line in text.splitlines():
+        match = FENCE.match(line)
+        if fence is None:
+            if match:
+                fence = match[1]
+            else:
+                yield line
+        elif match and match[1].startswith(fence) and not match[2].strip():
+            fence = None
+
+
+def _heading_ids(text):
+    ids = set()
+    for line in _outside_fences(text):
+        match = HEADING.match(line)
+        if match:
+            heading = MARKDOWN_LINK.sub(lambda link: link[0][1:link[0].index(']')], match[1])
+            slug = re.sub(r'[^\w -]', '', heading.lower()).replace(' ', '-')
+            anchor = slug
+            number = 1
+            while anchor in ids:
+                anchor = f'{slug}-{number}'
+                number += 1
+            ids.add(anchor)
+    return ids
 
 
 def test_documented_local_links_exist():
+    documents = sorted(ROOT.glob('*.md')) + sorted((ROOT / 'docs').rglob('*.md'))
+    headings = {document.resolve(): _heading_ids(document.read_text('utf-8')) for document in documents}
     broken = []
-    for document in [ROOT / 'README.md', *sorted((ROOT / 'docs').glob('*.md'))]:
+    for document in documents:
         text = document.read_text('utf-8')
         assert not any(ord(c) < 32 and c not in '\n\r\t' for c in text), document.name
-        for target in re.findall(r'\[[^\]]*\]\(([^\s)]+)(?:\s+[^)]*)?\)', text):
+        prose = '\n'.join(_outside_fences(text))
+        for target in MARKDOWN_LINK.findall(prose) + HTML_LINK.findall(prose):
             link = urlsplit(target.strip('<>'))
-            if link.scheme or link.netloc or not link.path:
+            if link.scheme or link.netloc:
                 continue
-            if not (document.parent / unquote(link.path)).exists():
-                broken.append((document.name, target))
+            path = (document.parent / unquote(link.path)).resolve() if link.path else document.resolve()
+            if not path.exists():
+                broken.append((document.relative_to(ROOT), target, 'missing path'))
+            elif link.fragment and path in headings and unquote(link.fragment) not in headings[path]:
+                broken.append((document.relative_to(ROOT), target, 'missing heading'))
     assert not broken, broken
 
 

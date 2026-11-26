@@ -10,6 +10,9 @@ This is a free project looked after in spare time, so there is no fixed response
 first. Only the latest version is fixed; there are no maintained
 older releases.
 
+[How Altera keeps things safe](docs/SAFETY.md) describes the content checks, the limits on connected services
+and the protections around Kids mode and local data.
+
 ## What Altera is built for
 
 Altera is a local app for one household on one PC. It is not built to be reached from the internet, and it has no user
@@ -51,5 +54,5 @@ These are not security problems, but ordinary issues are welcome:
 
 - A model ignoring its instructions. The prompt guides the model's behavior. Altera applies the fixed rules above separately.
 - The vision model getting someone's age wrong, when no fixed rule was bypassed. The age check is an estimate and is
-  documented as one. [Avatars and pictures](docs/AVATARS.md#content-rules)
+  documented as one. [Image checks](docs/SAFETY.md#image-checks)
 - Problems that need someone who can already use the PC as you, or who knows the parent PIN.

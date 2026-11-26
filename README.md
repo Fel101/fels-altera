@@ -71,10 +71,10 @@ of `setup.bat` and run `python altera.py --open` with the `.venv` Python instead
 
 ## What stays on your PC and what leaves it
 
-With LM Studio or Ollama, your chats never leave your PC. Your conversations, memories, notes, pictures and settings are
-kept in Altera's folder (`data/` and a few files beside it).
+With LM Studio or Ollama running on this PC, chat replies are generated here. Altera saves your conversations,
+memories, notes, pictures and settings in its own folder (`data/` and a few files beside it).
 
-These are the only things that send anything out, and each one is a choice you make:
+These features can send data to other services when you choose to use them:
 
 - **A cloud model** (OpenAI, OpenRouter or another remote server) receives what you write and the conversation it needs
   to answer.
@@ -86,7 +86,10 @@ These are the only things that send anything out, and each one is a choice you m
   voice file, Altera sends that file to Voice Lab on this PC. The speaker's stated use terms appear before a cloned voice is imported.
 - **Web search and reading web pages** are off at first. When switched on, the search terms and addresses go to those
   sites.
-- **Pictures** go to the ComfyUI and vision-model servers you set up. Those are usually local, but not necessarily.
+- **Pictures** go to the ComfyUI and vision-model servers you set up. **Picture of us** sends a copy of the photo you
+  select to the services shown after you confirm. [Picture of us](docs/AVATARS.md#picture-of-us)
+- **Phone access** sends chats, pictures and other pages you open to your phone over your private Tailscale connection.
+  [Phone setup](docs/ANDROID_TAILSCALE.md)
 - **Setup** downloads Python packages from PyPI. With `--models`, it also downloads the memory and speech models from
   Chroma's model store and Hugging Face.
 - **An approved Ollama download** asks Ollama on this PC to fetch the selected model from its registry. The request
@@ -100,32 +103,16 @@ backups. See [Backup and restore](docs/BACKUP_AND_RESTORE.md) and
 
 ## Content rules
 
-Altera keeps conversation and pictures non-sexual.
-
-Some rules hold whatever is switched on. They are written in the code (`core/safety.py`), so editing the settings or
-the prompt cannot loosen them:
-
-- No minors. Every companion must be 18 or older. A request or description that points at a child, a teenager or an age
-  under 18 is refused, and a sexual message that points at a minor gets a fixed refusal without reaching the model.
-- No real people. Requests for a celebrity, a look-alike or a deepfake are refused.
-- Nothing non-consensual.
-- **Every picture is age-checked.** A vision model estimates the age of the person in each picture, and a picture that
-  reads as under 18 is discarded. A more revealing picture is shown only if the check ran and passed.
-
-The age check is a model's estimate, not proof: it can be off by several years either way. The word lists catch the
-obvious phrasings, not every phrasing. Both are guardrails behind each other, not a guarantee. The same page gives the
-details and the measured results.
+Make fictional adult companions. Altera's core keeps conversation and pictures non-sexual and applies rules against
+real-person likenesses, childlike characters and non-consensual content. Image age checks are estimates.
+[Responsible use](docs/responsible-use.md) covers voice consent, licences and sharing.
+[How Altera keeps things safe](docs/SAFETY.md) explains the checks and their limits.
 
 ## Kids mode
 
-Kids mode makes a pal a better fit for a child: simpler words, child-friendly topics, and a fixed reply when a message
-touches a topic such as self-harm, sex, drugs, violence or personal details. A parent PIN locks it, and a **kids view** lets a child's
-tablet reach only kids pals. The server refuses every other page in that view, so typing a web address doesn't get
-around it.
-
-**Kids mode is a guardrail, not parental-control software.** It has not been tested or approved as one, its topic
-lists will miss things, and the model can still get things wrong. An adult needs to keep an eye on things. Anyone who
-knows the PIN, or can open the files on the PC, can undo it. See [Kids mode](docs/KIDS_MODE.md).
+Kids mode gives a pal simpler words and child-friendly topics. A parent PIN locks the adult settings, and **Kids**
+opens a view with only kids-mode pals. Kids mode adds guardrails. Use parental controls and adult supervision
+alongside it. [Set up Kids mode](docs/KIDS_MODE.md)
 
 ## Models, voices and checkpoints
 

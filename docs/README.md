@@ -7,7 +7,8 @@ who keeps notes and memories. A chat model is all you need to start. Voices, pic
 
 1. Install and start Altera using the [quick start](../README.md#start-in-five-minutes).
 2. In **Setup**, choose LM Studio or Ollama if you want replies made on this PC. If the server is off, follow the
-   app's instructions or choose **Start it for me** when offered. Setup can suggest a model that fits your PC.
+   app's instructions or choose **Start it for me** when offered. Setup can suggest a model that fits your PC;
+   [Choosing a chat model](CHOOSING_A_MODEL.md) shows how seven local models did on Altera's test.
    It asks before downloading one through Ollama. For LM Studio, open the suggested model page and download it there.
 3. Choose a model and run the short test. **Listed** means Altera found the model. A test reply tells you it can
    answer. You can run the test again from **Settings → Setup check**.

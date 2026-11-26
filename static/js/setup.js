@@ -142,7 +142,9 @@
                 link.textContent = `Install ${local.name}`;
             } else if (display?.link) {
                 link.href = display.link;
-                link.textContent = `Open ${display.name} in LM Studio`;
+                // A model missing from LM Studio's catalog links to its Hugging Face page, which LM Studio downloads from.
+                link.textContent = display.link.startsWith('https://huggingface.co/')
+                    ? `Open ${display.name} on Hugging Face` : `Open ${display.name} in LM Studio`;
             }
             $('setupStop').hidden = !busy || job?.action !== 'download';
             $('setupStop').disabled = job?.state !== 'working';

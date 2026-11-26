@@ -1,18 +1,20 @@
 # First match wins. Memory figures leave room for the OS and the model's working memory.
-# Both models answer directly within Altera's default reply budget.
-- name: Qwen3 4B Instruct
-  ram_gib: 12
-  vram_gib: 6
-  cpu_ram_gib: 24
+# The two models did best on Altera's model test (docs/CHOOSING_A_MODEL.md, run of 2026-11-23): both answer within
+# Altera's reply budget, and both start answering within about 8 seconds on the PC they were measured on.
+# cpu_ram_gib: null means the model is suggested only with a graphics card: on a CPU alone it starts too slowly.
+- name: Gemma 4 12B
+  ram_gib: 16
+  vram_gib: 10
+  cpu_ram_gib: null
   license: Apache 2.0
-  ollama: qwen3:4b-instruct-2507-q4_K_M
-  ollama_gb: 2.5
-  lmstudio: https://lmstudio.ai/models/qwen/qwen3-4b-2507
-- name: Granite 4.0 Micro
-  ram_gib: 7
+  ollama: gemma4:12b-it-q4_K_M
+  ollama_gb: 8.0
+  lmstudio: https://lmstudio.ai/models/google/gemma-4-12b
+- name: LFM3 1.7B
+  ram_gib: 8
   vram_gib: 3
-  cpu_ram_gib: 7
-  license: Apache 2.0
-  ollama: granite4:micro
-  ollama_gb: 2.1
-  lmstudio: https://lmstudio.ai/models/ibm/granite-4-micro
+  cpu_ram_gib: 8
+  license: LFM Open License v1.0
+  ollama: lfm3:1.7b-q8_0
+  ollama_gb: 1.8
+  lmstudio: https://huggingface.co/LiquidAI/LFM3-1.7B-GGUF

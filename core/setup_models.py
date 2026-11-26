@@ -52,14 +52,20 @@ def catalog():
         return ()
     if not isinstance(rows, list):
         return ()
+    def amount(value):
+        return type(value) in {int, float} and 0 < value < 1024
+
     valid = []
     for row in rows:
+        # The LM Studio link is the model's page in LM Studio's catalog or, for a model the catalog lacks, its GGUF page on
+        # Hugging Face, which LM Studio downloads from. cpu_ram_gib null: suggested only with a graphics card.
         if (isinstance(row, dict) and all(isinstance(row.get(key), str) and row[key] for key in ('name', 'license'))
-                and all(type(row.get(key)) in {int, float} and 0 < row[key] < 1024
-                        for key in ('ram_gib', 'vram_gib', 'cpu_ram_gib', 'ollama_gb'))
+                and all(amount(row.get(key)) for key in ('ram_gib', 'vram_gib', 'ollama_gb'))
+                and (row.get('cpu_ram_gib') is None or amount(row['cpu_ram_gib']))
                 and re.fullmatch(r'[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+', str(row.get('ollama')))
                 and not row['ollama'].lower().endswith((':cloud', '-cloud'))
-                and re.fullmatch(r'https://lmstudio\.ai/models/[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+', str(row.get('lmstudio')))):
+                and re.fullmatch(r'https://(?:lmstudio\.ai/models|huggingface\.co)/[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+',
+                                 str(row.get('lmstudio')))):
             valid.append(row)
     return tuple(valid)
 
@@ -68,7 +74,7 @@ def _suggestion(key):
     ram, vram = model_hardware.memory()
     for row in catalog():
         graphics = ram is not None and vram is not None and ram >= row['ram_gib'] and vram >= row['vram_gib']
-        if graphics or (ram is not None and ram >= row['cpu_ram_gib']):
+        if graphics or (ram is not None and row['cpu_ram_gib'] is not None and ram >= row['cpu_ram_gib']):
             basis = (f'{ram:.0f} GB RAM and {vram:.0f} GB graphics memory' if graphics else f'{ram:.0f} GB RAM')
             return {
                 'name': row['name'], 'license': row['license'], 'basis': basis,

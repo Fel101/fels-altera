@@ -406,3 +406,24 @@ test('a provider off this PC says the chats are sent there', async () => {
     assert.equal(byId.setupModel.value, 'big-model');
     assert.doesNotMatch(template, /Nothing here sends anything off this PC/);
 });
+
+test('a suggested model missing from LM Studio\'s catalog links to its Hugging Face page', async () => {
+    for (const [link, words] of [['https://huggingface.co/LiquidAI/LFM3-1.7B-GGUF', 'Open LFM3 1.7B on Hugging Face'],
+                                 ['https://lmstudio.ai/models/google/gemma-4-12b', 'Open LFM3 1.7B in LM Studio']]) {
+        const {doc, byId} = page();
+        const {fetchImpl} = server({check: {ok: false}});
+        const reply = data => ({ok: true, status: 200, json: async () => data});
+        const suggestion = {name: 'LFM3 1.7B', model: null, size_gb: null, license: 'LFM Open License v1.0', basis: '8 GB RAM', link};
+        const setup = load().start({doc, navigate() {}, search: () => '', fetchImpl: async (url, init = {}) => {
+            if (url === '/api/llm/providers') return reply({providers: [
+                {key: 'lmstudio', name: 'LM Studio', base_url: 'http://127.0.0.1:1234/v1', is_active: true}]});
+            if (url === '/api/setup/local/lmstudio') return reply({supported: true, state: 'running', can_start: false,
+                models: [], suggestion, job: null});
+            return fetchImpl(url, init);
+        }});
+        await setup.loaded;
+        assert.equal(byId.setupModelLink.hidden, false);
+        assert.equal(byId.setupModelLink.href, link);
+        assert.equal(byId.setupModelLink.textContent, words);
+    }
+});

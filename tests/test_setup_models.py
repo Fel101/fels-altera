@@ -22,14 +22,34 @@ def client(monkeypatch):
 
 
 def test_recommends_by_ram_and_graphics_memory(monkeypatch):
+    # The two models that did best on Altera's model test (docs/CHOOSING_A_MODEL.md).
+    monkeypatch.setattr(setup_models.model_hardware, 'memory', lambda: (32, 16))
+    big = setup_models._suggestion('ollama')
+    assert big['model'] == 'gemma4:12b-it-q4_K_M' and big['license'] == 'Apache 2.0' and big['size_gb'] == 8.0
+    assert setup_models._suggestion('lmstudio')['link'] == 'https://lmstudio.ai/models/google/gemma-4-12b'
     monkeypatch.setattr(setup_models.model_hardware, 'memory', lambda: (16, 8))
-    assert setup_models._suggestion('ollama')['model'] == 'qwen3:4b-instruct-2507-q4_K_M'
-    monkeypatch.setattr(setup_models.model_hardware, 'memory', lambda: (8, None))
+    assert setup_models._suggestion('ollama')['model'] == 'lfm3:1.7b-q8_0'
+    monkeypatch.setattr(setup_models.model_hardware, 'memory', lambda: (64, None))      # no graphics card: never the 12B
     suggestion = setup_models._suggestion('lmstudio')
-    assert suggestion['name'] == 'Granite 4.0 Micro' and suggestion['license'] == 'Apache 2.0'
-    assert suggestion['link'] == 'https://lmstudio.ai/models/ibm/granite-4-micro'
+    assert suggestion['name'] == 'LFM3 1.7B' and suggestion['license'] == 'LFM Open License v1.0'
+    assert suggestion['link'] == 'https://huggingface.co/LiquidAI/LFM3-1.7B-GGUF' and suggestion['basis'] == '64 GB RAM'
     monkeypatch.setattr(setup_models.model_hardware, 'memory', lambda: (4, None))
     assert setup_models._suggestion('ollama') is None
+
+
+def test_the_catalog_takes_only_checked_rows(monkeypatch, tmp_path):
+    row = {'name': 'M', 'license': 'L', 'ram_gib': 8, 'vram_gib': 4, 'cpu_ram_gib': None, 'ollama': 'm:1b', 'ollama_gb': 1,
+           'lmstudio': 'https://huggingface.co/org/M-GGUF'}
+    rows = [row, {**row, 'cpu_ram_gib': 0}, {**row, 'lmstudio': 'http://huggingface.co/org/M'},
+            {**row, 'lmstudio': 'https://example.com/org/M'}, {**row, 'ollama': 'm:cloud'}]
+    (tmp_path / 'content').mkdir()
+    (tmp_path / 'content/model_suggestions.yaml').write_text(json.dumps(rows), encoding='utf-8')
+    monkeypatch.setattr(setup_models, 'CODE_ROOT', tmp_path)
+    setup_models.catalog.cache_clear()
+    try:
+        assert setup_models.catalog() == (row,)
+    finally:
+        setup_models.catalog.cache_clear()
 
 
 def test_installation_is_distinct_from_an_empty_server(client, monkeypatch):
@@ -70,7 +90,7 @@ def test_download_refuses_arbitrary_tags_and_provider_urls(client, monkeypatch):
     assert client.post(path, json={'confirmed': True, 'model': 'arbitrary:cloud'}).status_code == 400
     monkeypatch.setattr(setup, '_provider', lambda _: SimpleNamespace(enabled=True, base_url='http://192.168.1.1:11434/v1'))
     assert client.get('/api/setup/local/ollama').json == {'supported': False}
-    assert client.post(path, json={'confirmed': True, 'model': 'granite4:micro'}).status_code == 400
+    assert client.post(path, json={'confirmed': True, 'model': 'lfm3:1.7b-q8_0'}).status_code == 400
 
 
 @pytest.mark.parametrize(('key', 'args'), [
@@ -113,7 +133,7 @@ class PullStream(httpx.AsyncByteStream):
 
 @pytest.mark.parametrize(('last', 'state'), [(b'{"status":"success"}\n', 'ready'), (b'', 'failed')])
 def test_download_stream_uses_a_fixed_loopback_url_and_needs_success(client, monkeypatch, last, state):
-    model = 'granite4:micro'
+    model = 'lfm3:1.7b-q8_0'
     inventories = iter([[], [], [model]])
     monkeypatch.setattr(setup_models, '_probe', lambda *_: ('running', next(inventories)))
 
@@ -144,7 +164,7 @@ def test_stop_closes_a_quiet_download_and_rejects_stale_ids(client, monkeypatch)
     monkeypatch.setattr(setup_models, '_pull_updates', quiet)
     monkeypatch.setattr(setup_models, '_probe', lambda *_: ('running', []))
     path = '/api/setup/local/ollama/download'
-    payload = {'confirmed': True, 'model': 'granite4:micro'}
+    payload = {'confirmed': True, 'model': 'lfm3:1.7b-q8_0'}
     started = client.post(path, json=payload)
     assert started.status_code == 202 and entered.wait(2)
     assert client.post(path, json=payload).status_code == 409

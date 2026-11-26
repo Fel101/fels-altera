@@ -32,6 +32,7 @@ Speech, pictures and a phone connection are optional extras.
 
 Altera itself runs on the CPU. The chat model needs room in graphics memory or RAM. First-run setup suggests a
 starting model based on this PC's memory. Small models are quicker but follow instructions less well.
+[Choosing a chat model](docs/CHOOSING_A_MODEL.md) shows how seven local models did on Altera's own test.
 
 **Optional pieces** add something, but chat needs none of them:
 

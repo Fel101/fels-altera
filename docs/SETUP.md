@@ -133,7 +133,7 @@ A fresh instance has no model chosen. Choose your provider and a model it serves
 - **If Ollama has no models**, Setup can suggest one based on your graphics memory and RAM. Its button shows the approximate download size. Confirm to download and use the model. **Stop download** closes Altera's download request. Ollama can reuse partial files when you try again.
 - **If LM Studio has no models**, open the suggested model's page and use LM Studio to download it. Back in Altera, choose **Check again** and select the model.
 
-The estimates leave some memory for Windows and the model's work. The [model catalog](../content/model_suggestions.yaml) lists the suggestions and their licences. [Qwen3 download](https://ollama.com/library/qwen3:4b-instruct-2507-q4_K_M) · [Granite download](https://ollama.com/library/granite4:micro)
+The estimates leave some memory for Windows and the model's work. The suggestions are the two models that did best on Altera's model test: Gemma 4 12B with a graphics card of 10 GB or more, and LFM3 1.7B otherwise. [Choosing a chat model](CHOOSING_A_MODEL.md) has the test's results, the download names and the licences, and the [model catalog](../content/model_suggestions.yaml) is the list Setup reads.
 
 The test message is the only reply Altera generates without a conversation: it is a fixed `Reply with the single word OK.` prompt, labelled as a test on the page, and nothing a person typed is included. If the provider is missing, down, misconfigured or silent, the page says what to start and how for LM Studio and Ollama. Nothing there blocks finishing: **Skip for now** is remembered, and the same check is in Settings as **Setup check**.
 

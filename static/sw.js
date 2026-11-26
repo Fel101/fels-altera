@@ -98,7 +98,8 @@
 // v120: the manifest names the app Fel's Altera.
 // v121: a card's voice that Voice Lab already has is used, not imported again (home.js).
 // v122: the chat column clips its blurred picture, so opening the GPU light no longer slides the chat sideways.
-const CACHE_VERSION = 'v122';
+// v123: Setup links a suggested model missing from LM Studio's catalog to its Hugging Face page (setup.js).
+const CACHE_VERSION = 'v123';
 const STATIC_CACHE = `altera-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `altera-dynamic-${CACHE_VERSION}`;
 

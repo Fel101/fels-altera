@@ -49,8 +49,7 @@ Please report these privately:
 
 These are not security problems, but ordinary issues are welcome:
 
-- A model ignoring its instructions, or writing something its adult-mode level shouldn't allow. The text side of adult
-  mode is enforced by the prompt, and models vary. The fixed rules above are the part that must hold.
+- A model ignoring its instructions. The prompt guides the model's behavior. Altera applies the fixed rules above separately.
 - The vision model getting someone's age wrong, when no fixed rule was bypassed. The age check is an estimate and is
-  documented as one ([Avatars and adult mode](docs/AVATARS_AND_ADULT_MODE.md#what-the-rules-cannot-do)).
+  documented as one. [Avatars and pictures](docs/AVATARS.md#content-rules)
 - Problems that need someone who can already use the PC as you, or who knows the parent PIN.

@@ -131,7 +131,7 @@ Backups use a logical snapshot of IDs, documents, metadata and embeddings plus t
 | `config.local.yaml`, `.env` | Machine settings/credentials; keep private |
 | `personality.yaml` | Default persona definition |
 | `user_profile.yaml` | Name, hobbies, preferences, facts, recent moods and saved UI/service preferences |
-| `content/adult_tiers.yaml` | Editable adult-mode prompt/image tiers |
+| `data/addons/<name>/` | Data directory for an installed add-on |
 | `data/secret_key` | Persistent session signing key |
 | `data/avatars/<id>/` | Avatar card, portrait/body, living frames, companion state |
 | `data/avatars/<id>/notes/` | `about_you.md`, `our_story.md`, state/provenance and up to eight older versions per note |

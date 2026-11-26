@@ -73,8 +73,6 @@ def setup_world(tmp_path):
     (root / 'requirements.lock.txt').write_text('flask==3.0\nPyYAML==6.0\n', encoding='utf-8')
     (root / 'config.example.yaml').write_text('llm:\n  provider: lmstudio\n', encoding='utf-8')
     (root / 'personality.yaml').write_text('name: Synthetic\n', encoding='utf-8')
-    (root / 'content').mkdir()
-    (root / 'content/adult_tiers.yaml').write_text('off: {}\n', encoding='utf-8')
     return NS(root=root, home=home, messages=[])
 
 
@@ -110,7 +108,7 @@ def test_explicit_setup_creates_missing_venv_and_installs_without_service_or_mod
     assert 'flask==3.0' in processes.constraints and 'pip==25.0' in processes.constraints
     assert (w.home / 'config.yaml').read_bytes() == (w.root / 'config.example.yaml').read_bytes()
     assert (w.home / 'personality.yaml').read_bytes() == (w.root / 'personality.yaml').read_bytes()
-    assert (w.home / 'content/adult_tiers.yaml').is_file()
+    assert not (w.home / 'content/adult_tiers.yaml').exists()
     assert all(not any(str(part).endswith('altera.py') for part in command) for command, _ in processes.calls)
 
 
@@ -119,7 +117,8 @@ def test_repeat_setup_preserves_all_existing_private_files_and_never_reinstalls(
     originals = {'config.yaml': b'llm:\n  provider: custom\n  model: selected-model\n',
                  'config.local.yaml': b'llm:\n  api_key: private-test-key\n', '.env': b'PRIVATE_TEST_KEY=value\n',
                  'personality.yaml': b'name: Existing\n', 'data/conversations.db': b'PRIVATE_SYNTHETIC_DATABASE',
-                 'backups/saved.zip': b'PRIVATE_SYNTHETIC_ARCHIVE', 'user_profile.yaml': b'name: Existing user\n'}
+                 'backups/saved.zip': b'PRIVATE_SYNTHETIC_ARCHIVE', 'user_profile.yaml': b'name: Existing user\n',
+                 'content/adult_tiers.yaml': b'off: {}\n'}
     for name, content in originals.items():
         path = w.home / name
         path.parent.mkdir(parents=True, exist_ok=True)

@@ -339,7 +339,7 @@ class Setup:
     def starter_files(self, *, readonly=False):
         copies = [('config.example.yaml', 'config.yaml')]
         if self.home != self.root:
-            copies += [('personality.yaml', 'personality.yaml'), ('content/adult_tiers.yaml', 'content/adult_tiers.yaml')]
+            copies.append(('personality.yaml', 'personality.yaml'))
         for source_name, target_name in copies:
             source, target = self.root / source_name, self.home / target_name
             if target.exists() or target.is_symlink():

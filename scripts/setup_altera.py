@@ -247,7 +247,9 @@ def validate_wheelhouse(folder):
             with zipfile.ZipFile(wheel) as archive:
                 if len(archive.infolist()) > 100000:
                     raise ValueError('Oversized wheel directory')
-                metadata = [item for item in archive.infolist() if item.filename.endswith('.dist-info/METADATA')]
+                # Only the wheel's own metadata can introduce pip dependencies.
+                metadata = [item for item in archive.infolist()
+                            if item.filename.count('/') == 1 and item.filename.endswith('.dist-info/METADATA')]
                 if len(metadata) != 1 or metadata[0].file_size > 1024 * 1024:
                     raise ValueError('Missing or oversized wheel metadata')
                 from email.parser import BytesParser

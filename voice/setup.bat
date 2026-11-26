@@ -4,13 +4,18 @@ rem Kokoro needs Python 3.10, 3.11 or 3.12; this uses the Python launcher's 3.12
 setlocal
 set "HERE=%~dp0"
 if "%PYTHON%"=="" set "PYTHON=py -3.12"
-if not exist "%HERE%.venv\Scripts\python.exe" (
-    echo Making %HERE%.venv
-    %PYTHON% -m venv "%HERE%.venv" || goto failed
+if not defined ALTERA_VOICE_ENV set "ALTERA_VOICE_ENV=%HERE%.venv"
+if not exist "%ALTERA_VOICE_ENV%\Scripts\python.exe" (
+    echo Making "%ALTERA_VOICE_ENV%"
+    if defined ALTERA_VOICE_BOOTSTRAP (
+        "%ALTERA_VOICE_BOOTSTRAP%" -m venv "%ALTERA_VOICE_ENV%" || goto failed
+    ) else (
+        %PYTHON% -m venv "%ALTERA_VOICE_ENV%" || goto failed
+    )
 )
-"%HERE%.venv\Scripts\python.exe" -m pip install --upgrade pip || goto failed
-"%HERE%.venv\Scripts\python.exe" -m pip install -r "%HERE%requirements.txt" || goto failed
-"%HERE%.venv\Scripts\python.exe" "%HERE%serve.py" --download || goto failed
+"%ALTERA_VOICE_ENV%\Scripts\python.exe" -m pip install --upgrade pip || goto failed
+"%ALTERA_VOICE_ENV%\Scripts\python.exe" -m pip install -r "%HERE%requirements.txt" || goto failed
+"%ALTERA_VOICE_ENV%\Scripts\python.exe" "%HERE%serve.py" --download || goto failed
 echo.
 echo The voice service is installed. In Altera's Settings, switch Voice on.
 exit /b 0

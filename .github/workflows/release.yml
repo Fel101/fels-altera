@@ -1,0 +1,60 @@
+name: Build release kit
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag, such as v1.0.0
+        required: true
+        type: string
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+jobs:
+  setup:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          architecture: x64
+      - name: Build Setup and record its checksum
+        run: python scripts/build_installer.py --tag "$env:TAG" --output "$env:RUNNER_TEMP\altera-release"
+      - name: Verify the bundled Python install
+        run: |
+          $kit = "$env:RUNNER_TEMP\altera-release"
+          $setup = (Get-Item "$kit\Altera-Setup-*.exe").FullName
+          $testInstall = "$env:RUNNER_TEMP\altera-installed"
+          $env:Path = "$env:SystemRoot\System32;$env:SystemRoot"
+          $installed = Start-Process -WindowStyle Hidden -FilePath $setup -ArgumentList @(
+            '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/ALTERAUPDATE=1', '/TASKS=',
+            "/DIR=""$testInstall""", "/LOG=""$env:RUNNER_TEMP\installer.log"""
+          ) -PassThru -Wait
+          if ($installed.ExitCode -ne 0) {
+            Get-Content "$env:RUNNER_TEMP\installer.log" -Tail 45
+            if (Test-Path "$testInstall\setup.log") { Get-Content "$testInstall\setup.log" -Tail 45 }
+            throw "Setup returned $($installed.ExitCode)."
+          }
+          $version = $env:TAG.Substring(1)
+          $python = "$testInstall\releases\$version\.venv\Scripts\python.exe"
+          & $python -I -c "import sys, flask, waitress; assert sys.version_info[:2] == (3, 12)"
+          if ($LASTEXITCODE) { throw "Bundled Python did not load Altera's dependencies." }
+      - name: Attest Setup and SHA256SUMS
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            ${{ runner.temp }}/altera-release/Altera-Setup-*.exe
+            ${{ runner.temp }}/altera-release/SHA256SUMS
+      - uses: actions/upload-artifact@v6
+        with:
+          name: altera-release-kit
+          path: ${{ runner.temp }}/altera-release
+          if-no-files-found: error

@@ -464,6 +464,7 @@ Source: [`system.py`](../core/routes/system.py).
 | `GET` | `/api/gpu` | Suite GPU lock state (`free`, `shared` or `alone`), current holders and any pending exclusive request. Uses the app's normal access controls. |
 | `POST` | `/api/unload` | Local app-to-app request with JSON. Frees Altera's own GPU voice and microphone models, returning `{ok: true}`. Returns 409 with `code: "busy"` and `doing` during active work. Available without the PIN to direct loopback clients. Browser and proxied requests are refused. |
 | `GET` | `/api/diagnostics` | Private per-request diagnostics. |
+| `GET` / `POST` | `/api/updates` | Direct local access only. GET reports installed and available versions and download progress. POST with `{action}` accepts `check`, `download`, `stop`, `install` or `undo`. Only the managed Windows launch can download, open Setup or undo. |
 | `GET` | `/api/conversation-starters` | Get suggested conversation starters based on time of day and user interests. |
 
 

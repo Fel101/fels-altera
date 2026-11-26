@@ -564,11 +564,31 @@
                 </div>
                 <div class="settings-footer">
                     <p class="setting-hint settings-version" id="appVersion">Altera {{ altera_version }}</p>
+                    <button type="button" class="about-link" id="updatesOpen">Check for updates</button>
                     <button type="button" class="about-link" id="aboutLink" data-click="openAbout">About</button>
                 </div>
             </div>
         </div>
     </div>
+
+    <dialog id="updatesDialog" class="kids-dialog" aria-labelledby="updatesTitle">
+        <h2 id="updatesTitle">Altera updates</h2>
+        <p id="updatesStatus" class="kids-status" role="status"></p>
+        <p id="updatesDetails"></p>
+        <progress id="updatesProgress" aria-label="Setup download progress" hidden></progress>
+        <div class="kids-actions">
+            <button type="button" id="updatesCheck">Check again</button>
+            <button type="button" id="updatesDownload" class="kids-primary" hidden>Update now</button>
+            <button type="button" id="updatesStop" hidden>Stop download</button>
+            <button type="button" id="updatesInstall" class="kids-primary" hidden>Open Setup and restart</button>
+            <button type="button" id="updatesUndo" hidden>Undo</button>
+            <button type="button" id="updatesConfirmUndo" class="kids-primary" hidden>Undo and restart</button>
+        </div>
+        <form method="dialog" class="kids-actions">
+            <a id="updatesReleases" rel="noreferrer" target="_blank" hidden>Open releases on GitHub</a>
+            <button type="submit" autofocus>Close</button>
+        </form>
+    </dialog>
 
     <!-- About Altera. The π in its corner opens the box below. -->
     <div class="companion-overlay" id="aboutOverlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
@@ -764,6 +784,7 @@
     <script src="{{ url_for('static', filename='js/reply-settings.js') }}"></script>
     <script src="{{ url_for('static', filename='js/companion.js') }}"></script>
     <script src="{{ url_for('static', filename='js/about.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/updates.js') }}"></script>
     {% for panel in addon_panels if panel.script %}<script src="{{ panel.script }}"></script>{% endfor %}
     <script src="{{ url_for('static', filename='js/companions.js') }}"></script>
     <script src="{{ url_for('static', filename='js/shared-scene.js') }}"></script>

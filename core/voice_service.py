@@ -55,7 +55,9 @@ def _launcher(cfg):
     in voice/.venv beside the source."""
     k = cfg["kokoro"]
     folder = tts.PROJECT_ROOT / "voice"
-    own_python = folder / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    installed_root = env.get('INSTALLED_ROOT')
+    environment = Path(installed_root) / 'instance' / 'voice' if installed_root else folder
+    own_python = environment / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     return (Path(k["python"]) if k["python"] else own_python,
             Path(k["script"]) if k["script"] else folder / "serve.py")
 

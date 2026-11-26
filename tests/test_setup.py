@@ -221,6 +221,8 @@ def test_registry_wheel_metadata_can_be_inspected_without_installing(tmp_path):
     with zipfile.ZipFile(tmp_path / 'synthetic-1.0-py3-none-any.whl', 'w') as archive:
         archive.writestr('synthetic-1.0.dist-info/METADATA',
                          'Metadata-Version: 2.1\nName: synthetic\nVersion: 1.0\nRequires-Dist: flask>=3.0\n')
+        archive.writestr('synthetic/_vendor/extra-1.0.dist-info/METADATA',
+                         'Metadata-Version: 2.1\nName: extra\nVersion: 1.0\n')
     setup.validate_wheelhouse(tmp_path)
 
 

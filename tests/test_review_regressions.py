@@ -683,7 +683,7 @@ def test_requirements_declare_every_directly_imported_package():
 
     here = Path(__file__).resolve().parent.parent
     # voice/ is the local voice service, with its own environment and voice/requirements.txt (checked below)
-    skip = {".venv", ".git", "backup", "__pycache__", ".pytest_cache", "data", "voice"}
+    skip = {".venv", ".git", "backup", "__pycache__", ".pytest_cache", "data", "voice", "out"}
     # top-level module name -> distribution name as it appears in requirements.txt
     provides = {
         "flask": "flask", "werkzeug": "werkzeug", "yaml": "pyyaml", "openai": "openai",
@@ -711,7 +711,7 @@ def test_requirements_declare_every_directly_imported_package():
             elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
                 names = [node.module.split(".")[0]]
             for name in names:
-                if name in sys.stdlib_module_names or name in {"core", "altera"}:
+                if name in sys.stdlib_module_names or name in {"core", "altera", "scripts", "windows_install"}:
                     continue
                 imported.add(name)
 

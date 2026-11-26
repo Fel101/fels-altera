@@ -145,7 +145,26 @@ def main(app=None, *, args=None):
     settings = config.get('app') or {}
     host = settings.get('host') or '127.0.0.1'
     port = int(settings.get('port', fels_suite.PORTS['altera']))
-    if args.dev or settings.get('debug', False):
+    dev = args.dev or settings.get('debug', False)
+    exit_code = None
+    installed = None
+    if not dev and threading.current_thread() is threading.main_thread():
+        from core.updates import UpdateService, managed_root
+        installed = managed_root()
+        if installed:
+            import _thread
+
+            def restart(code):
+                nonlocal exit_code
+                exit_code = code
+                # Let Waitress deliver the response before interrupting its main loop.
+                timer = threading.Timer(1, _thread.interrupt_main)
+                timer.daemon = True
+                timer.start()
+
+            app.extensions['altera_updates'] = UpdateService(installed)
+            app.extensions['altera_update_restart'] = restart
+    if dev:
         from werkzeug.debug import DebuggedApplication
         from werkzeug.serving import make_server
         app.debug = True
@@ -162,7 +181,8 @@ def main(app=None, *, args=None):
         # Keep raw Serve headers for the loopback + host + HTTPS + identity checks in remote_access.
         # No proxy middleware rewrites remote_addr from an untrusted forwarded header.
         server = create_server(app, host=host, port=port, threads=8, max_request_body_size=MAX_ARCHIVE_BYTES + 65536,
-                               clear_untrusted_proxy_headers=False)
+                               clear_untrusted_proxy_headers=False,
+                               **({'asyncore_loop_timeout': .5} if installed else {}))
         if hasattr(server, 'effective_listen'):
             bound_host, bound_port = server.effective_listen[0]
         else:
@@ -200,6 +220,8 @@ def main(app=None, *, args=None):
                 signal.signal(signal.SIGTERM, previous_sigterm)
             if suite_env is not None:
                 fels_suite.remove_address('altera', suite_env)
+    if exit_code is not None:
+        raise SystemExit(exit_code)
 
 
 def _http_url(host, port):

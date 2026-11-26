@@ -92,3 +92,11 @@ body.kids-view .header-actions .tool-toggle-btn[title="Workspace tools"] {
 .kids-actions .kids-primary:hover { background: var(--accent-hover); }
 .kids-actions button:disabled { opacity: 0.55; cursor: not-allowed; }
 .kids-dialog :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+#updatesDialog {
+    margin: auto;
+    max-height: calc(100% - 32px);
+    overflow: auto;
+}
+#updatesDialog .kids-actions { align-items: center; flex-wrap: wrap; }
+#updatesProgress { width: 100%; }

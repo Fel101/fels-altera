@@ -47,6 +47,42 @@ def system_health_details():
     return jsonify(service.check(request.args.get('session_id', type=int))), 200, {'Cache-Control': 'no-store'}
 
 
+@bp.route('/api/updates', methods=['GET', 'POST'])
+def release_updates():
+    from core.state_gate import STATE, StateBusy, request_lease
+    from core.updates import UpdateError, UpdateService
+    from scripts.windows_install import UNDO_EXIT, UPDATE_EXIT
+
+    if not direct_local_request():
+        return jsonify(error='Open Altera on the PC to check for updates.'), 403
+    extensions = current_app.extensions
+    service = extensions.setdefault('altera_updates', UpdateService(None))
+    if request.method == 'GET':
+        return jsonify(service.status()), 200, {'Cache-Control': 'no-store'}
+    body = request.get_json(silent=True)
+    action = body.get('action') if isinstance(body, dict) else None
+    try:
+        if action in ('check', 'download'):
+            service.start(action)
+        elif action == 'stop':
+            service.stop()
+        elif action in ('install', 'undo'):
+            restart = extensions.get('altera_update_restart')
+            if not restart:
+                raise UpdateError('Open the Windows installation from the Start menu to use this action.')
+            with STATE.exclusive(allow_lease=request_lease()):
+                if STATE.fault:
+                    raise UpdateError('Finish Backup recovery before updating Altera.')
+                service.authorize_restart(action)
+                STATE.begin_shutdown()
+                restart(UPDATE_EXIT if action == 'install' else UNDO_EXIT)
+        else:
+            return jsonify(error='Choose an update action.'), 400
+    except (UpdateError, StateBusy) as error:
+        return jsonify(error=str(error)), 409
+    return jsonify(service.status()), 200, {'Cache-Control': 'no-store'}
+
+
 @bp.get('/api/diagnostics')
 def diagnostics():
     from core.datastore import get_datastore

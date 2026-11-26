@@ -47,6 +47,13 @@ a voice or a picture uses a fake one.
 Tests for a separately installed add-on are marked `requires_addon`. Set `ALTERA_TEST_ADDON` to the package folder
 and run `python -m pytest -q -m requires_addon` to include its integration checks.
 
+## Build the Windows release kit
+
+Use Windows, 64-bit Python 3.12 and Inno Setup 6. Run
+`python scripts/build_installer.py --ref HEAD` to build Setup and SHA256SUMS from the committed files. The build
+downloads the pinned Python runtime and the locked dependency wheels. The release workflow checks that the
+installer can set up its own Python, then attests the two artifacts.
+
 ## Fel's Studio ports
 
 | Service | Port |

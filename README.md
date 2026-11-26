@@ -24,8 +24,9 @@ Speech, pictures and a phone connection are optional extras.
 
 - **Windows 10 or 11**, where Altera is developed and tested. A `setup.sh` for Linux and macOS is included, but it is
   less tested.
-- **Python 3.12** from [python.org](https://www.python.org/downloads/). 3.11 and 3.13 work too, but the optional local
-  voice needs 3.12 or older, so 3.12 covers everything. Setup checks the version and won't use any other.
+- **Python 3.12** comes with the Windows installer. For a source checkout, get it from
+  [python.org](https://www.python.org/downloads/). Versions 3.11 and 3.13 also run Altera. Use 3.12 for the optional
+  local voice.
 - **A chat model server.** [LM Studio](https://lmstudio.ai) or [Ollama](https://ollama.com) on the same PC is the usual
   choice. vLLM, OpenAI, OpenRouter and any OpenAI-compatible server also work.
 
@@ -48,6 +49,12 @@ Start Voice Lab and choose **Use Voice Lab for speech** in Setup or Settings. Ea
 voice from [Voice Lab](https://github.com/Fel101/fels-voice-lab).
 
 ## Start in five minutes
+
+For a Windows release, run **Setup.exe** and open **Altera** from the Start menu. Setup lets you choose the
+memory and microphone models and the optional Kokoro voice. The browser guides you through choosing a chat model.
+[Windows setup and updates](docs/SETUP.md#windows-installer)
+
+If you are running Altera from source, follow these steps.
 
 1. Install [LM Studio](https://lmstudio.ai/download) or [Ollama](https://ollama.com/download).
 2. Download this repository and open a terminal in its folder. Run:
@@ -94,6 +101,9 @@ These features can send data to other services when you choose to use them:
   Chroma's model store and Hugging Face.
 - **An approved Ollama download** asks Ollama on this PC to fetch the selected model from its registry. The request
   contains the model name. Chats stay on this PC. The LM Studio model link opens its catalog in your browser.
+- **Check for updates** asks GitHub for the latest Altera release and identifies the version you're running.
+  **Update now** downloads the installer and its checksum. GitHub receives the network address of the request.
+  This check runs when you ask for it.
 
 Altera has no account, no telemetry and no automatic fallback to another provider. The files on disk are not encrypted:
 anyone who can open Altera's folder can read them, so use full-disk encryption if that matters to you

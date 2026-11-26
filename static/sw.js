@@ -95,7 +95,7 @@
 // v113: Voice Lab discovery, per-pal voice licences and speech availability.
 // v114: character card inbox, card voice review, and Forge card portraits.
 // v115: optional add-on panels and core-only picture controls.
-const CACHE_VERSION = 'v118';
+const CACHE_VERSION = 'v119';
 const STATIC_CACHE = `altera-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `altera-dynamic-${CACHE_VERSION}`;
 
@@ -135,6 +135,7 @@ const STATIC_ASSETS = [
   '/static/js/chat-controls.js',
   '/static/js/companion.js',
   '/static/js/about.js',
+  '/static/js/updates.js',
   '/static/js/companions.js',
   '/static/js/shared-scene.js',
   '/static/js/living.js',

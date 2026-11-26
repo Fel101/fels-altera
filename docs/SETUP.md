@@ -1,5 +1,26 @@
 # Set up Altera
 
+## Windows installer
+
+Run the release's **Setup.exe** and choose where to install Altera. It includes Python 3.12 and the packages it needs
+for text chat. On the task page, choose whether to download the memory and microphone models or the local Kokoro
+voice. The voice is unticked when Setup finds a Voice Lab installation. Open **Altera** from the Start menu.
+
+The installed app keeps chats, settings and backups in the `instance` folder inside its installation folder.
+If you use a separate source checkout, its data stays in its own folder.
+
+Open **Settings → Check for updates** on the PC running Altera. **Update now** downloads the Windows installer and
+checks its SHA-256 checksum. You can stop the download. When it's ready, choose **Open Setup and restart**. Altera
+closes, Setup opens, and Altera reopens after you finish. In the same panel, **Undo** opens the previous installed
+version using your existing chats and settings. Save a backup before moving between major versions.
+
+The release supplies `SHA256SUMS` with the installer. To check a downloaded copy, run
+`Get-FileHash -Algorithm SHA256 .\Altera-Setup-1.0.0.exe` and compare the value for that file.
+With GitHub CLI installed, use `gh attestation verify Altera-Setup-1.0.0.exe --repo Fel101/Altera` to check its build
+record.
+
+## Set up from source
+
 Use an installed **Python 3.11, 3.12 or 3.13**; the tests run on all three. Choose 3.12 if you can: the optional [local voice](VOICE.md#a-local-voice) runs on 3.12 or older, so one Python then covers both. Setup does not install Python, a model server or a speech service, and it downloads model weights only when asked to with `--models` (below). Obtain Python separately from [python.org](https://www.python.org/downloads/) or your operating system's package manager.
 
 On Windows, run `setup.bat`. On Linux or macOS, run `sh setup.sh`. Both wrappers find the script beside themselves and can be called from another working directory. They prefer an existing project environment; otherwise they look for Python 3.12, then 3.13, then 3.11 (`py -3.12` on Windows, `python3.12` elsewhere), and finally plain `python` or `python3`, whose version setup checks itself. `ALTERA_SETUP_PYTHON` can name an explicit bootstrap interpreter. The equivalent Python command is:

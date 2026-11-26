@@ -33,6 +33,30 @@ def _preset(found, offer):
     raise voicelab.LabError("This preset is not ready in Voice Lab. Get its model and voice ready there, then try again.")
 
 
+def _in_lab(found, sample_info, model):
+    """The ready Cast voice this Lab already holds for the file, when the file was exported from this Lab's Cast.
+
+    A card made in NPC Forge carries the voice file of a Cast voice from the same Voice Lab. Importing it again would
+    make a second Cast voice with the same name, and Voice Lab then refuses that name for everyone who uses it, so the
+    voice already there is used instead. The file names its voice by the Cast identity it came from; that id is random,
+    so only this Lab's own export can name one of its voices.
+    """
+    identity = sample_info.get("id")
+    if not voicelab._valid_identity(identity):
+        return None
+    if identity in found.hidden:
+        raise voicelab.LabError(_shared_name(found.hidden[identity]))
+    name = next((row["id"] for row in found.voices
+                 if row["kind"] == "cast" and row.get("identity_id") == identity and row.get("model") == model), None)
+    if name is not None and found.shared(name):
+        raise voicelab.LabError(_shared_name(name))
+    return name
+
+
+def _shared_name(name):
+    return f"Voice Lab has more than one voice called {name}. Rename one in Voice Lab’s Cast, then try again."
+
+
 def review(store, avatar_id, data, secret):
     action = data.get("action")
     with LOCK:
@@ -69,7 +93,8 @@ def review(store, avatar_id, data, secret):
                 if cloned and not all(isinstance(value, str) and value.strip() for value in (origin, allowed)):
                     raise voicelab.LabError("The recording has no stated origin or allowed use. Ask for a voice file with both.")
                 info.update(name=title, cloned=cloned, origin=origin[:1000] if isinstance(origin, str) else "",
-                            allowed_use=allowed[:1000] if isinstance(allowed, str) else "")
+                            allowed_use=allowed[:1000] if isinstance(allowed, str) else "",
+                            in_lab=_in_lab(voicelab.catalogue(url), sample_info, offer["model"]) is not None)
             return {**info, "review": proof.dumps(binding), "selected": cfg["engine"] == "voicelab"}
 
         token = data.get("review")
@@ -82,7 +107,12 @@ def review(store, avatar_id, data, secret):
             raise characters.CharacterError("The review expired or the voice changed. Preview it again.", 409) from None
 
         if offer["archive"]:
-            voice = _apply_archive(store, avatar_id, url, binding[1:], archive)
+            _, sample_info = voicelab.preview_persona(url, archive)
+            found = voicelab.catalogue(url)
+            if found.url != url or found.library != library:
+                raise voicelab.LabError("Voice Lab changed during the review. Preview the voice again.")
+            voice = (_in_lab(found, sample_info, offer["model"])
+                     or _apply_archive(store, avatar_id, url, binding[1:], archive))
         _save(store, avatar_id, voice=voice)
         return {"name": voice, "selected": cfg["engine"] == "voicelab"}
 
@@ -111,6 +141,8 @@ def _apply_archive(store, avatar_id, url, binding, archive):
         if voice is None:
             found = voicelab.catalogue(url)
             voice = next((row["id"] for row in found.voices if row.get("identity_id") == pending["identity"]), None)
+    if not voice and pending["identity"] in found.hidden:
+        raise voicelab.LabError(_shared_name(found.hidden[pending["identity"]]))
     if not voice:
         raise voicelab.LabError("The imported voice is in Cast. Get it ready in Voice Lab and try again.")
     return voice

@@ -189,3 +189,54 @@ def test_portable_recording_review_requires_permission_and_uses_the_imported_cas
     assert client.post(url, json=payload).json["name"] == "Actual Cast name"
     assert client.post(url, json=payload).json["name"] == "Actual Cast name"
     assert calls.count("/api/portable/import") == 1 and world.avatars.get(avatar_id)["voice"] == "Actual Cast name"
+
+
+def _same_lab(monkeypatch, voices):
+    """A Lab whose voice file was exported from its own Cast identity ID, with `voices` as GET /api/voices."""
+    calls = []
+
+    def read(url, endpoint, *, data=None, **_):
+        calls.append(endpoint)
+        if endpoint == "/api/health":
+            result = {"app": "Fel's Voice Lab", "lab_id": "test-library"}
+        elif endpoint == "/api/portable/preview":
+            result = {"archive": {"title": "Bram", "kind": "persona", "archive_sha256": sha256(data).hexdigest(),
+                "voices": [{"id": ID, "engine_id": "turbo", "model_installed": True, "sample": {
+                    "source_type": "recording", "origin": "Fictional test recording", "allowed_use": "Private rehearsal"}}]}}
+        elif endpoint == "/api/voices":
+            result = {"voices": voices}
+        else:
+            pytest.fail(endpoint)
+        return json.dumps(result).encode()
+
+    monkeypatch.setenv("VOICE_LAB_URL", LAB)
+    monkeypatch.setattr(voicelab.voice_http, "read", read)
+    client = create_app("companions").test_client()
+    data = card(voice={"file": True, "name": "Bram", "model": "turbo", "cloned_from_person": True})
+    avatar_id = client.post("/api/characters/import", data={"file": (io.BytesIO(data), "voice.charx")}).json["card_id"]
+    return client, f"/api/characters/{avatar_id}/card-voice", avatar_id, calls
+
+
+def test_a_card_from_this_labs_own_cast_uses_that_voice_and_imports_nothing(world, monkeypatch):
+    # NPC Forge's card carries the file of a Cast voice from the same Lab. A second copy would give two voices one name,
+    # which Voice Lab refuses for every app that speaks by it.
+    client, url, avatar_id, calls = _same_lab(monkeypatch, [
+        {"name": "Bram", "kind": "cast", "model": "turbo", "identity_id": ID, "ready": True},
+        {"name": "Other", "kind": "cast", "model": "turbo", "identity_id": REF, "ready": True}])
+    review = client.post(url, json={"action": "preview"}).json
+    assert review["in_lab"] is True and review["cloned"]
+    assert client.post(url, json={"action": "use", "review": review["review"]}).status_code == 409    # still asks
+    assert client.post(url, json={"action": "use", "review": review["review"], "permission": True}).json["name"] == "Bram"
+    assert world.avatars.get(avatar_id)["voice"] == "Bram"
+    assert "/api/portable/import" not in calls and not any(call.startswith("/api/identities/") for call in calls)
+
+
+def test_a_name_two_lab_voices_share_is_refused_with_what_to_do(world, monkeypatch):
+    client, url, _, calls = _same_lab(monkeypatch, [
+        {"name": "Bram (Voice Slate: bram)", "kind": "cast", "model": "turbo", "identity_id": ID, "ready": True},
+        {"name": "Bram (Voice Slate: bram)", "kind": "cast", "model": "turbo", "identity_id": REF, "ready": True}])
+    answer = client.post(url, json={"action": "preview"})
+    assert answer.status_code == 409 and "more than one voice called Bram (Voice Slate: bram)" in answer.json["error"]
+    assert "Rename one" in answer.json["error"] and "/api/portable/import" not in calls
+    found = voicelab.catalogue(LAB)
+    assert [voice["id"] for voice in found.voices] == ["Bram (Voice Slate: bram)"] and found.hidden == {REF: "Bram (Voice Slate: bram)"}

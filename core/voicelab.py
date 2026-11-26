@@ -6,7 +6,7 @@ import json
 import os
 import re
 import wave
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from hashlib import sha256
 
 from core import fels_suite, voice_http
@@ -32,6 +32,12 @@ class Catalogue:
     library: str
     voices: list[dict]
     notice: str | None
+    # Ready voices left out because another voice has their name, by Cast identity. Voice Lab refuses a name that more
+    # than one voice has, so neither can speak by it until one is renamed in Cast.
+    hidden: dict = field(default_factory=dict)
+
+    def shared(self, name):
+        return name in self.hidden.values()
 
 
 def valid_name(name):
@@ -80,11 +86,14 @@ def catalogue(given=''):
     except (voice_http.VoiceHTTPError, ValueError):
         raise LabError('Voice Lab could not list its voices. Check Voice Lab and try again.') from None
 
-    voices = {}
+    voices, hidden = {}, {}
     for row in rows:
         if not (isinstance(row, dict) and row.get('ready') is True and valid_name(row.get('name'))):
             continue
         name = row['name']
+        if name in voices:
+            hidden[row.get('identity_id') or name] = name
+            continue
         licence = row.get('licence')
         licence = licence if isinstance(licence, dict) else {}
         rating = licence.get('rating')
@@ -93,7 +102,7 @@ def catalogue(given=''):
         voices.setdefault(name, {'id': name, 'label': name, 'kind': 'cast' if row.get('kind') == 'cast' else 'preset',
                                  'voice_id': row.get('voice_id'), 'identity_id': row.get('identity_id'),
                                  'model': row.get('model'), 'licence': {'label': label, 'reason': reason[:400] if isinstance(reason, str) else ''}})
-    return Catalogue(url, library, sorted(voices.values(), key=lambda voice: voice['kind'] != 'cast'), notice)
+    return Catalogue(url, library, sorted(voices.values(), key=lambda voice: voice['kind'] != 'cast'), notice, hidden)
 
 
 def default_voice(voices):

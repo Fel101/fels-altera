@@ -96,7 +96,8 @@
 // v114: character card inbox, card voice review, and Forge card portraits.
 // v115: optional add-on panels and core-only picture controls.
 // v120: the manifest names the app Fel's Altera.
-const CACHE_VERSION = 'v120';
+// v121: a card's voice that Voice Lab already has is used, not imported again (home.js).
+const CACHE_VERSION = 'v121';
 const STATIC_CACHE = `altera-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `altera-dynamic-${CACHE_VERSION}`;
 

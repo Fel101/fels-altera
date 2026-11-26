@@ -355,7 +355,11 @@
                     const result = await call(`/api/characters/${encodeURIComponent(context.id)}/card-voice`, json('POST', body));
                     if (action === 'preview') {
                         context.review = result;
-                        message.textContent = result.cloned ? `${result.name} includes a person’s recording. Review the speaker and allowed use.`
+                        // A card made from this Lab's own Cast voice uses that voice: nothing is imported.
+                        const inLab = `${result.name} is already in Voice Lab’s Cast.`;
+                        message.textContent = result.cloned
+                            ? `${result.in_lab ? `${inLab} It includes` : `${result.name} includes`} a person’s recording. Review the speaker and allowed use.`
+                            : result.in_lab ? inLab
                             : result.archive ? `${result.name} is ready to import into Voice Lab’s Cast.`
                                 : `${result.name} is ready ${result.remote ? 'on your configured Voice Lab server' : 'in Voice Lab'}.`;
                         $('cardVoiceTerms').hidden = !(result.origin || result.allowed_use || result.cloned);
@@ -364,7 +368,7 @@
                         $('cardVoiceConsentRow').hidden = !result.cloned;
                         $('cardVoiceConsent').checked = false;
                         $('cardVoiceUse').hidden = false;
-                        $('cardVoiceUse').textContent = result.archive ? 'Import and use this voice' : 'Use this voice';
+                        $('cardVoiceUse').textContent = result.archive && !result.in_lab ? 'Import and use this voice' : 'Use this voice';
                         $('cardVoicePreview').hidden = true;
                     } else {
                         context.saved = result.name;

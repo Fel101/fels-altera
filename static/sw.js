@@ -95,7 +95,7 @@
 // v113: Voice Lab discovery, per-pal voice licences and speech availability.
 // v114: character card inbox, card voice review, and Forge card portraits.
 // v115: optional add-on panels and core-only picture controls.
-const CACHE_VERSION = 'v117';
+const CACHE_VERSION = 'v118';
 const STATIC_CACHE = `altera-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `altera-dynamic-${CACHE_VERSION}`;
 

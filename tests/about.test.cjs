@@ -21,7 +21,7 @@ test("About describes Fel's Studio and links to all four apps", () => {
         ['Voice Slate', 'https://github.com/Fel101/fels-voice-slate'],
         ['Voice Lab', 'https://github.com/Fel101/fels-voice-lab'],
         ['NPC Forge', 'https://github.com/Fel101/fels-npc-forge'],
-        ['Altera', 'https://github.com/Fel101/Altera'],
+        ['Altera', 'https://github.com/Fel101/fels-altera'],
     ]);
 });
 

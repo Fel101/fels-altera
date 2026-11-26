@@ -5,4 +5,4 @@ person to do something (a setting that moved, data that cannot go back to an old
 """
 VERSION = "1.0.0"
 SUITE_API = 1
-UPDATE_REPOSITORY = "Fel101/Altera"
+UPDATE_REPOSITORY = "Fel101/fels-altera"

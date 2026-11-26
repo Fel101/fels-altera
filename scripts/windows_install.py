@@ -19,6 +19,7 @@ UNDO_EXIT = 41
 VERSION_PATTERN = re.compile(r'(?:0|[1-9][0-9]{0,8})(?:\.(?:0|[1-9][0-9]{0,8})){2}\Z')
 STATE_FILE = 'installed.json'
 NOTICE_FILE = 'update-notice.txt'
+SETUP_PREFIX = 'FelsAltera-Setup-'
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
 
@@ -26,6 +27,11 @@ def version_key(version):
     if not isinstance(version, str) or not VERSION_PATTERN.fullmatch(version):
         raise ValueError('This release has an unreadable version.')
     return tuple(int(part) for part in version.split('.'))
+
+
+def setup_name(version):
+    """The file name of a release's Setup, as the release workflow publishes it."""
+    return f'{SETUP_PREFIX}{version}.exe'
 
 
 def atomic_write(path, text):
@@ -140,7 +146,7 @@ def apply_download(root):
     try:
         contents = json.loads(pending.read_text(encoding='utf-8'))
         version_key(contents['version'])
-        installer = pending.with_name(f"Altera-Setup-{contents['version']}.exe")
+        installer = pending.with_name(setup_name(contents['version']))
         if installer.resolve() != installer or file_digest(installer) != contents['sha256']:
             raise ValueError('The downloaded Setup file changed. Check for updates and download it again.')
         done = subprocess.run([str(installer), f'/DIR={root}', '/ALTERAUPDATE=1', '/NORESTART', '/TASKS='],

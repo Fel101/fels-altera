@@ -148,4 +148,4 @@ def test_the_home_page_has_the_three_tiles_and_the_gallery(client, world):
         assert f'data-kind="{kind}"' in page and f'data-count="{kind}"' in page
     for element in ("homeContinue", "homeGallery", "homeStatus", "js/home.js", "css/home.css"):
         assert element in page
-    assert "<title>Altera — Home</title>" in page
+    assert "<title>Fel's Altera — Home</title>" in page

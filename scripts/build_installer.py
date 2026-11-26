@@ -1,4 +1,4 @@
-"""Build Altera-Setup and SHA256SUMS from a local Git commit or release tag."""
+"""Build FelsAltera-Setup and SHA256SUMS from a local Git commit or release tag."""
 
 import argparse
 from contextlib import contextmanager
@@ -13,7 +13,7 @@ import sys
 import tempfile
 import zipfile
 
-from windows_install import file_digest, version_key
+from windows_install import file_digest, setup_name, version_key
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ('altera.py', 'core', 'content', 'docs', 'scripts', 'static', 'templates', 'voice',
@@ -88,7 +88,7 @@ def compile_setup(staging, output, compiler, *, tag=None, script=ROOT / 'install
     version_key(version)
     if tag is not None and tag != f'v{version}':
         raise ValueError(f'The tag must be v{version} to match the packaged source.')
-    result = output / f'Altera-Setup-{version}.exe'
+    result = output / setup_name(version)
     subprocess.run([str(compiler), '/Qp', f'/DAppVersion={version}', f'/DStaging={staging}',
                     f'/DOutput={output}', str(script)], check=True)
     (output / 'SHA256SUMS').write_text(f'{file_digest(result)}  {result.name}\n', encoding='ascii', newline='\n')

@@ -4,15 +4,18 @@
 #endif
 
 #define ReleaseDir "{app}\releases\" + AppVersion
+#define AppName "Fel's Altera"
+#define Repository "Fel101/fels-altera"
 
 [Setup]
 AppId={{304FF512-403E-4C6D-ABBD-198232D3E6E1}
-AppName=Altera
+AppName={#AppName}
 AppVersion={#AppVersion}
-AppPublisher=Altera project
-AppPublisherURL=https://github.com/Fel101/Altera
-AppUpdatesURL=https://github.com/Fel101/Altera/releases
-DefaultDirName={localappdata}\Altera
+AppVerName={#AppName} {#AppVersion}
+AppPublisher={#AppName} project
+AppPublisherURL=https://github.com/{#Repository}
+AppUpdatesURL=https://github.com/{#Repository}/releases
+DefaultDirName={localappdata}\FelsAltera
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
@@ -22,9 +25,10 @@ SetupMutex=Local\AlteraManagedSetup
 AppMutex=Local\AlteraManagedRuntime
 CloseApplications=no
 OutputDir={#Output}
-OutputBaseFilename=Altera-Setup-{#AppVersion}
+OutputBaseFilename=FelsAltera-Setup-{#AppVersion}
 SetupIconFile={#Staging}\altera.ico
 UninstallDisplayIcon={app}\altera.ico
+UninstallDisplayName={#AppName}
 WizardStyle=modern
 Compression=lzma2/fast
 SolidCompression=yes
@@ -43,10 +47,10 @@ Source: "{#Staging}\app\scripts\windows_install.py"; DestDir: "{app}"; DestName:
 Source: "{#Staging}\altera.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{userprograms}\Altera"; Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\launch.pyw"""; WorkingDir: "{app}"; IconFilename: "{app}\altera.ico"
+Name: "{userprograms}\{#AppName}"; Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\launch.pyw"""; WorkingDir: "{app}"; IconFilename: "{app}\altera.ico"
 
 [Run]
-Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\launch.pyw"" --from-setup"; Description: "Open Altera in your browser"; Flags: postinstall nowait skipifsilent; Check: LaunchAfterSetup
+Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\launch.pyw"" --from-setup"; Description: "Open {#AppName} in your browser"; Flags: postinstall nowait skipifsilent; Check: LaunchAfterSetup
 
 [Code]
 var

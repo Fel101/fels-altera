@@ -1,4 +1,4 @@
-# Altera
+# Fel's Altera
 
 Altera is a companion app that runs on your own PC. You chat with pals, characters and companions you make yourself,
 and the conversations, memories and notes stay in a folder on your machine.
@@ -10,7 +10,7 @@ Speech, pictures and a phone connection are optional extras.
 > [Voice Slate](https://github.com/Fel101/fels-voice-slate) records voices with consent,
 > [Voice Lab](https://github.com/Fel101/fels-voice-lab) designs and clones voices,
 > [NPC Forge](https://github.com/Fel101/fels-npc-forge) makes characters for games, and
-> [Altera](https://github.com/Fel101/Altera) lets you talk with them. Each one also works on its own.
+> [Altera](https://github.com/Fel101/fels-altera) lets you talk with them. Each one also works on its own.
 
 ![Home, with three pals](docs/images/home.png)
 

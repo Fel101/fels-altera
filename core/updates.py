@@ -17,7 +17,7 @@ from core import env
 from core.paths import CODE_ROOT
 from core.routes.agent_tools import _PublicHTTPSHandler
 from core.version import UPDATE_REPOSITORY, VERSION
-from scripts.windows_install import NOTICE_FILE, atomic_write, read_installation, release_path, version_key
+from scripts.windows_install import NOTICE_FILE, atomic_write, read_installation, release_path, setup_name, version_key
 
 RELEASE_PAGE = f'https://github.com/{UPDATE_REPOSITORY}/releases'
 API_URL = f'https://api.github.com/repos/{UPDATE_REPOSITORY}/releases/latest'
@@ -80,7 +80,7 @@ def check_release():
         raise UpdateError('Altera could not read the release version. Open the releases page for details.') from None
     if latest <= version_key(VERSION):
         return None, f'You already have version {VERSION}. There is no newer release.'
-    name = f'Altera-Setup-{version}.exe'
+    name = setup_name(version)
     assets = record.get('assets')
     found = {asset.get('name'): asset.get('size') for asset in assets if isinstance(asset, dict)
              and isinstance(asset.get('name'), str)} if isinstance(assets, list) else {}
@@ -92,7 +92,7 @@ def check_release():
 
 def download_release(root, release, progress, stopped):
     version, size = release['version'], release['size']
-    name = f'Altera-Setup-{version}.exe'
+    name = setup_name(version)
     base = f'{RELEASE_PAGE}/download/v{version}/'
     manifest = read_small(base + 'SHA256SUMS', 8192).decode('ascii')
     hashes = re.findall(rf'^([a-fA-F0-9]{{64}}) [ *]{re.escape(name)}\r?$', manifest, re.M)

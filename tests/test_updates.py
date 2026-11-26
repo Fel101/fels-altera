@@ -11,7 +11,7 @@ from scripts import windows_install
 
 
 def test_release_check_uses_the_published_version_and_exact_installer(monkeypatch):
-    release = {'tag_name': 'v1.0.1', 'assets': [{'name': 'Altera-Setup-1.0.1.exe', 'size': 1000},
+    release = {'tag_name': 'v1.0.1', 'assets': [{'name': 'FelsAltera-Setup-1.0.1.exe', 'size': 1000},
                                                 {'name': 'SHA256SUMS'}]}
     monkeypatch.setattr(updates, 'VERSION', '1.0.0')
     monkeypatch.setattr(updates, 'read_small', lambda url, limit: json.dumps(release).encode())
@@ -36,7 +36,7 @@ def test_download_only_publishes_a_complete_approved_installer(tmp_path, monkeyp
     tmp_path = tmp_path.resolve()
     payload = b'version one installer'
     digest = sha256(payload).hexdigest()
-    manifest = f'{digest}  Altera-Setup-1.0.1.exe\n'.encode()
+    manifest = f'{digest}  FelsAltera-Setup-1.0.1.exe\n'.encode()
     monkeypatch.setattr(updates, 'read_small', lambda *args: manifest)
     provided = payload if outcome != 'checksum' else b'?' * len(payload)
     monkeypatch.setattr(updates, 'open_release', lambda url: BytesIO(provided))
@@ -56,7 +56,7 @@ def test_download_only_publishes_a_complete_approved_installer(tmp_path, monkeyp
     assert not list(folder.glob('*.partial'))
     if outcome == 'ok':
         assert json.loads((folder / 'pending.json').read_text()) == {'version': '1.0.1', 'sha256': digest}
-        assert (folder / 'Altera-Setup-1.0.1.exe').read_bytes() == payload
+        assert (folder / 'FelsAltera-Setup-1.0.1.exe').read_bytes() == payload
     else:
         assert not list(folder.iterdir())
 

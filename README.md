@@ -12,6 +12,8 @@ Speech, pictures and a phone connection are optional extras.
 > [NPC Forge](https://github.com/Fel101/fels-npc-forge) makes characters for games, and
 > [Altera](https://github.com/Fel101/fels-altera) lets you talk with them. Each one also works on its own.
 
+[Download for Windows](https://github.com/Fel101/fels-altera/releases/latest)
+
 ![Home, with three pals](docs/images/home.png)
 
 ![A chat with a pal](docs/images/chat.png)

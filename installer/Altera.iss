@@ -17,6 +17,7 @@ AppPublisherURL=https://github.com/{#Repository}
 AppUpdatesURL=https://github.com/{#Repository}/releases
 DefaultDirName={localappdata}\FelsAltera
 DisableProgramGroupPage=yes
+UsePreviousTasks=no
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -37,7 +38,7 @@ SetupLogging=yes
 
 [Tasks]
 Name: "models"; Description: "Download the memory and microphone models (about 230 MB)"; Flags: unchecked
-Name: "kokoro"; Description: "Install the optional local Kokoro voice (1–2 GB of packages, plus voice models)"
+Name: "kokoro"; Description: "Install the optional local Kokoro voice (1–2 GB of packages, plus voice models)"; Flags: unchecked
 
 [Files]
 Source: "{#Staging}\app\*"; DestDir: "{#ReleaseDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -57,6 +58,7 @@ Type: filesandordirs; Name: "{app}\instance\voice\.venv"
 Type: files; Name: "{app}\installed.json"
 Type: files; Name: "{app}\setup.log"
 Type: files; Name: "{app}\setup-error.txt"
+Type: files; Name: "{app}\setup-warnings.txt"
 Type: files; Name: "{app}\launcher.log"
 Type: files; Name: "{app}\update-notice.txt"
 Type: dirifempty; Name: "{app}"
@@ -69,7 +71,6 @@ Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\launch.pyw"" --from-s
 
 [Code]
 var
-  TasksOpened: Boolean;
   SetupWorked: Boolean;
 
 function OpenAfterSetup(): Boolean;
@@ -80,27 +81,6 @@ end;
 function LaunchAfterSetup(): Boolean;
 begin
   Result := SetupWorked and OpenAfterSetup();
-end;
-
-function VoiceLabInstalled(): Boolean;
-var
-  Key: String;
-begin
-  Key := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{6F1D2A8B-5C3E-4B7A-9D21-3E8F0C4A7B15}_is1';
-  Result := RegKeyExists(HKCU, Key) or RegKeyExists(HKCU32, Key);
-end;
-
-procedure CurPageChanged(Page: Integer);
-var
-  I: Integer;
-begin
-  if (Page = wpSelectTasks) and not TasksOpened then
-  begin
-    TasksOpened := True;
-    for I := 0 to WizardForm.TasksList.Items.Count - 1 do
-      if (not OpenAfterSetup()) or (VoiceLabInstalled() and (Pos('Kokoro', WizardForm.TasksList.Items[I]) > 0)) then
-        WizardForm.TasksList.Checked[I] := False;
-  end;
 end;
 
 function RunSetupHelper(Options: String): String;
@@ -138,13 +118,14 @@ end;
 procedure CurStepChanged(Step: TSetupStep);
 var
   Options, Problem: String;
+  Warnings: AnsiString;
 begin
   if Step <> ssPostInstall then
     Exit;
   Options := '--finish {#AppVersion} --wheels "' + ExpandConstant('{tmp}\wheels') + '"';
-  if WizardIsTaskSelected('models') and (not WizardSilent() or OpenAfterSetup()) then
+  if WizardIsTaskSelected('models') and OpenAfterSetup() then
     Options := Options + ' --models';
-  if WizardIsTaskSelected('kokoro') and (not WizardSilent() or OpenAfterSetup()) then
+  if WizardIsTaskSelected('kokoro') and OpenAfterSetup() then
     Options := Options + ' --voice';
   WizardForm.StatusLabel.Caption := 'Setting up Altera. Setup needs to finish this step before closing.';
   WizardForm.ProgressGauge.Style := npbstMarquee;
@@ -152,7 +133,9 @@ begin
   WizardForm.ProgressGauge.Style := npbstNormal;
   SetupWorked := Problem = '';
   if not SetupWorked then
-    SuppressibleMsgBox(Problem, mbError, MB_OK, IDOK);
+    SuppressibleMsgBox(Problem, mbError, MB_OK, IDOK)
+  else if not WizardSilent() and LoadStringFromFile(ExpandConstant('{app}\setup-warnings.txt'), Warnings) then
+    SuppressibleMsgBox(String(Warnings), mbInformation, MB_OK, IDOK);
 end;
 
 function GetCustomSetupExitCode(): Integer;

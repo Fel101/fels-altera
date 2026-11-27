@@ -19,7 +19,7 @@
             <div>
                 <p class="home-eyebrow">Altera</p>
                 <h1 id="setupTitle">Set up Altera</h1>
-                <p id="setupIntro" class="home-muted">One name, one model, and you are ready.</p>
+                <p id="setupIntro" class="home-muted">Connect a chat provider, then get a text reply from a starter character.</p>
             </div>
             <a href="/home" id="setupSkipLink">Skip for now</a>
         </header>
@@ -56,19 +56,19 @@
             <button type="button" id="setupCheck" class="home-secondary">Check again</button>
         </section>
 
-        <section class="setup-card" aria-labelledby="setupOptionalTitle">
-            <h2 id="setupOptionalTitle">Optional</h2>
+        <details class="setup-card">
+            <summary>Optional speech, microphone and memory</summary>
             <p class="home-muted">None of these is needed to chat. Each one adds something, and you can set them up later.</p>
             <ul id="setupOptional" class="setup-list" aria-live="polite"></ul>
             <p class="home-muted"><a href="https://github.com/Fel101/fels-voice-lab" target="_blank" rel="noreferrer">Voice Lab</a> can give each pal a voice you design or choose there.</p>
             <p id="setupLabStatus" class="home-status" role="status"></p>
             <button type="button" id="setupLabUse" class="home-secondary" hidden>Use Voice Lab for speech</button>
-        </section>
+        </details>
 
         <p id="setupStatus" class="home-status" role="status" aria-live="polite"></p>
         <div class="setup-actions">
             <button type="button" id="setupSkip" class="home-secondary">Skip for now</button>
-            <button type="button" id="setupDone" class="home-primary">Finish and make a pal</button>
+            <button type="button" id="setupDone" class="home-primary">Finish and choose a starter</button>
         </div>
     </main>
     <dialog id="setupConfirmation" class="setup-confirm" aria-labelledby="setupConfirmTitle" aria-describedby="setupConfirmDetail">

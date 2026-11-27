@@ -4,7 +4,9 @@
 
 Run the release's **Setup.exe** and choose where to install Altera. It includes Python 3.12 and the packages it needs
 for text chat. On the task page, choose whether to download the memory and microphone models or the local Kokoro
-voice. The voice is unticked when Setup finds a Voice Lab installation. Open **Fel's Altera** from the Start menu.
+voice. Both are unticked by default. Open **Fel's Altera** from the Start menu, connect a chat provider, then choose a
+starter character. If an optional download fails, the installer names it and you can still open Altera. Run Setup again
+and select the failed download to retry.
 
 The installed app keeps chats, settings and backups in the `instance` folder inside its installation folder
 (`%LOCALAPPDATA%\FelsAltera` unless you chose another). If you use a separate source checkout, its data stays in its own

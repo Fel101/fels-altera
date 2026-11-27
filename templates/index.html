@@ -304,6 +304,10 @@
                 <!-- Waveform visualization (shown during recording) -->
                 <canvas id="waveformCanvas" class="waveform-canvas hidden"></canvas>
                 <p id="autoInterruptIndicator" class="auto-interrupt-indicator" role="status" hidden></p>
+                {% if starter_chat %}
+                <p id="starterChatGuide" class="setting-hint">Send a message to get your first text reply. If the provider is unavailable, <a href="/setup?check=1">check the connection and model</a>.</p>
+                <p id="starterSpeechGuide" class="setting-hint" role="status" hidden>Want to hear the next reply? Open <button type="button" class="settings-btn" data-click="toggleSettings">Settings</button> and choose a voice under Voice.</p>
+                {% endif %}
                 
                 <form class="message-form" id="messageForm" data-submit="sendMessage" data-pass="event">
                     <textarea

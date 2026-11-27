@@ -1690,6 +1690,12 @@ async function readChatStream(payload, hooks, replaying, turn) {
             if (saved) { saved.dataset.replyState = 'saved'; saved.dataset.messageId = data.message_id; }
             if (saved) saved.dataset.speechRequestId = payload.request_id;
             finalizeStreamingMessage(fullResponse, audioUrl, payload.request_id);
+            const starterGuide = document.getElementById('starterChatGuide');
+            const speechGuide = document.getElementById('starterSpeechGuide');
+            if (starterGuide && speechGuide) {
+                starterGuide.hidden = true;
+                speechGuide.hidden = false;
+            }
             hideTypingIndicator();
             loadSessions();
             forgetPendingTurn(payload.request_id);

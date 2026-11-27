@@ -62,6 +62,7 @@ def index():
         personality=get_personality(),
         config=get_config(),
         kids_view=kids_view,
+        starter_chat=not kids_view and bool(opened) and request.args.get("starter") == "1",
         addon_panels=[] if kids_view else addons.panels(),
         addon_notice="" if kids_view else adult.startup_notice(),
     )

@@ -167,7 +167,7 @@ def memory_ready():
     except Exception:
         return False
 
-try:
+def memory_status():
     configured = (config.get('memory') or {}).get('embedding_model_path')
     if memory_ready():
         result['memory'] = 'ready'
@@ -179,10 +179,8 @@ try:
         result['memory'] = 'ready' if memory_ready() else 'failed'
     else:
         result['memory'] = 'missing'
-except Exception:
-    result['memory'] = 'failed'
 
-try:
+def speech_status():
     from core.stt import model_status
     size = (config.get('voice') or {}).get('stt_model') or 'base'
     result['speech_model'] = size if isinstance(size, str) and len(size) <= 100 else 'custom'
@@ -196,8 +194,12 @@ try:
         result['speech'] = 'ready' if model_status(size) == 'cached' else 'failed'
     else:
         result['speech'] = 'missing'
-except Exception:
-    result['speech'] = 'failed'
+for feature, check in [('memory', memory_status), ('speech', speech_status)]:
+    if payload.get('feature') in (None, feature):
+        try:
+            check()
+        except Exception:
+            result[feature] = 'failed'
 print(json.dumps(result), file=answer)
 '''
 MODELS_SIZE = 'about 230 MB'
@@ -382,19 +384,29 @@ class Setup:
                             'unreachable': 'Provider metadata is unavailable. Start your existing model server separately and verify its endpoint.'}
                 raise SetupError(messages.get(status, 'The provider metadata response was unavailable.'))
 
-    def models(self, *, download=False):
+    def models(self, *, download=False, feature=None):
         """Report the memory and speech-recognition models, downloading the missing ones only when asked."""
         env = None
         if download:
             # The one step that goes online on purpose: Hugging Face must not be told to stay offline.
             env = {key: value for key, value in self.env.items() if key not in {'HF_HUB_OFFLINE', 'TRANSFORMERS_OFFLINE'}}
-            self.output(f'Downloading the missing memory and speech-recognition models ({MODELS_SIZE}). This can take a few minutes.')
+            names = {'memory': 'MiniLM memory model', 'speech': 'Whisper microphone model'}
+            if feature:
+                self.output(f'Checking and downloading the {names[feature]} if needed.')
+            else:
+                self.output(f'Downloading the missing memory and speech-recognition models ({MODELS_SIZE}). This can take a few minutes.')
         try:
-            result = self.json_command(self.python, MODELS_SCRIPT, {'code_root': str(self.root), 'download': download},
+            result = self.json_command(self.python, MODELS_SCRIPT,
+                                       {'code_root': str(self.root), 'download': download, 'feature': feature},
                                        timeout=1800 if download else 60, env=env)
         except SetupError:
             result = {}
         memory, speech, size = result.get('memory'), result.get('speech'), result.get('speech_model') or 'base'
+        if feature:
+            if result.get(feature) != 'ready':
+                raise SetupError(f'The {names[feature]} is unavailable. Check the model path and the network, then retry Setup.')
+            self.output(f'{names[feature]}: ready.')
+            return
         self.output({'ready': 'Memory model (MiniLM): ready.',
                      'missing': 'Memory model (MiniLM): not downloaded. Companions cannot keep memories without it.',
                      'configured_missing': 'Memory model (MiniLM): not found in memory.embedding_model_path. '
@@ -411,6 +423,13 @@ class Setup:
             self.output(f'Run setup again with --models to download them once ({MODELS_SIZE}). Text chat works without them.')
 
     def execute(self, args):
+        if args.download_model:
+            if args.check or args.offline or args.dry_run:
+                raise SetupError('--download-model needs regular online setup.')
+            if not self.python.is_file() or self.venv.is_symlink():
+                raise SetupError('Set up Altera before downloading an optional model.')
+            self.models(download=True, feature=args.download_model)
+            return 0
         path, lines = requirements(self.root, args.locked)
         if args.wheelhouse is not None:
             args.wheelhouse = Path(args.wheelhouse).expanduser().resolve()
@@ -504,7 +523,9 @@ def parser():
     result.add_argument('--python', help='Existing Python executable used only to create a missing .venv.')
     result.add_argument('--probe-models', action='store_true', help='Explicit bounded GET of the configured provider model metadata; no inference.')
     result.add_argument('--allow-network-provider', action='store_true', help='Also approve metadata requests to a configured non-loopback provider.')
-    result.add_argument('--models', action='store_true', help=f'Download the missing memory (MiniLM) and speech-recognition (Whisper) models once, {MODELS_SIZE}.')
+    optional = result.add_mutually_exclusive_group()
+    optional.add_argument('--models', action='store_true', help=f'Download the missing memory (MiniLM) and speech-recognition (Whisper) models once, {MODELS_SIZE}.')
+    optional.add_argument('--download-model', choices=('memory', 'speech'), help='Download one optional model for an existing installation.')
     return result
 
 

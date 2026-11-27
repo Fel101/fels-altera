@@ -19,6 +19,7 @@ UNDO_EXIT = 41
 VERSION_PATTERN = re.compile(r'(?:0|[1-9][0-9]{0,8})(?:\.(?:0|[1-9][0-9]{0,8})){2}\Z')
 STATE_FILE = 'installed.json'
 NOTICE_FILE = 'update-notice.txt'
+WARNINGS_FILE = 'setup-warnings.txt'
 SETUP_PREFIX = 'FelsAltera-Setup-'
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
@@ -89,7 +90,7 @@ def managed_env(root):
 
 
 def finish_install(root, version, wheels, *, models=False, voice=False):
-    """Set up the release before publishing it as current."""
+    """Publish the checked core, then try the requested optional downloads."""
     state = plan_install(root, version)
     release = release_path(root, version)
     instance = root / 'instance'
@@ -100,29 +101,48 @@ def finish_install(root, version, wheels, *, models=False, voice=False):
     setup = [str(bootstrap), '-I', '-B', str(release / 'scripts' / 'setup_altera.py'), '--home', str(instance)]
     environment = managed_env(root)
     warnings = []
+    (root / WARNINGS_FILE).unlink(missing_ok=True)
     with (root / 'setup.log').open('w', encoding='utf-8') as log:
         def run(command, *, timeout, env=environment):
             return subprocess.run(command, cwd=release, env=env, stdout=log, stderr=subprocess.STDOUT,
                                   creationflags=NO_WINDOW, timeout=timeout).returncode
 
+        def optional(feature, command, *, timeout, env=environment):
+            try:
+                if run(command, timeout=timeout, env=env) == 0:
+                    return
+                reason = 'could not be installed'
+            except subprocess.TimeoutExpired:
+                reason = 'timed out'
+            except OSError as error:
+                print(f'{feature}: {error}', file=log)
+                reason = 'could not start'
+            message = f'{feature} {reason}. Text chat is ready once a provider is connected. Run Setup again and select this download to retry.'
+            print(message, file=log)
+            warnings.append(message)
+
         if run([*setup, '--offline', '--locked', '--wheelhouse', str(wheels)], timeout=1500):
             raise ValueError('Altera’s required packages could not be installed. See setup.log and try Setup again.')
-        if models and run([*setup, '--locked', '--models'], timeout=2000):
-            warnings.append('The memory and microphone models could not be installed. Run Setup again to retry.')
+        if not installed_python(release, windowless=True).is_file():
+            raise ValueError('Altera’s Python environment is incomplete. Run Setup again.')
+        previous = state['current'] if state['current'] != version else state['previous']
+        atomic_write(root / STATE_FILE, json.dumps({'current': version, 'previous': previous}))
+        if models:
+            optional('The MiniLM memory model', [*setup, '--download-model', 'memory'], timeout=1900)
+            optional('The Whisper microphone model', [*setup, '--download-model', 'speech'], timeout=1900)
         if voice:
             voice_env = {**environment, 'ALTERA_VOICE_ENV': str(instance / 'voice' / '.venv'),
                          'ALTERA_VOICE_BOOTSTRAP': str(bootstrap)}
             command = [os.environ.get('ComSpec', r'C:\Windows\System32\cmd.exe'), '/d', '/c',
                        str(release / 'voice' / 'setup.bat')]
-            if run(command, timeout=3600, env=voice_env):
-                warnings.append('The local Kokoro voice could not be installed. Run Setup again to retry.')
-    if not installed_python(release, windowless=True).is_file():
-        raise ValueError('Altera’s Python environment is incomplete. Run Setup again.')
-    previous = state['current'] if state['current'] != version else state['previous']
-    atomic_write(root / STATE_FILE, json.dumps({'current': version, 'previous': previous}))
-    if warnings or previous:
-        message = ' '.join(warnings) if warnings else f'Altera was updated to {version}.'
-        atomic_write(root / NOTICE_FILE, message)
+            optional('The local Kokoro voice', command, timeout=3600, env=voice_env)
+    if warnings:
+        atomic_write(root / WARNINGS_FILE, '\n\n'.join(warnings))
+        atomic_write(root / NOTICE_FILE, ' '.join(warnings))
+    elif state['current'] and state['current'] != version:
+        atomic_write(root / NOTICE_FILE, f'Altera was updated to {version}.')
+    elif models or voice:
+        (root / NOTICE_FILE).unlink(missing_ok=True)
     return warnings
 
 

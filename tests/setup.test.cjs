@@ -277,7 +277,7 @@ test('an optional piece that cannot be read says so and still lets the first run
     assert.equal(byId.setupDone.disabled, false);
 });
 
-test('finishing saves the name and ends on Home with Make a pal', async () => {
+test('finishing saves the name and opens Home at the starter characters', async () => {
     const {doc, byId} = page();
     const {fetchImpl, calls} = server();
     const visits = [];
@@ -286,7 +286,7 @@ test('finishing saves the name and ends on Home with Make a pal', async () => {
     byId.setupName.value = '  Robin  ';
     await byId.setupDone.click();
     assert.deepEqual(calls.find(call => call.url === '/api/onboarding/complete').body, {name: 'Robin'});
-    assert.deepEqual(visits, ['/home?make=pal']);
+    assert.deepEqual(visits, ['/home?start=1#homeStarters']);
 });
 
 test('the name can be submitted with Enter', async () => {
@@ -298,7 +298,7 @@ test('the name can be submitted with Enter', async () => {
     byId.setupName.value = 'Robin';
     await byId.setupName.fire('keydown', {key: 'Enter'});
     assert.deepEqual(calls.find(call => call.url === '/api/onboarding/complete').body, {name: 'Robin'});
-    assert.deepEqual(visits, ['/home?make=pal']);
+    assert.deepEqual(visits, ['/home?start=1#homeStarters']);
 });
 
 test('skipping is remembered without saving a name and goes to Home', async () => {
@@ -338,7 +338,7 @@ test('finishing does not wait for the model check to come back', async () => {
     for (let i = 0; i < 4; i += 1) await tick();
     byId.setupName.value = 'Robin';
     await byId.setupDone.click();
-    assert.deepEqual(visits, ['/home?make=pal']);
+    assert.deepEqual(visits, ['/home?start=1#homeStarters']);
     release();
     await setup.loaded;
 });

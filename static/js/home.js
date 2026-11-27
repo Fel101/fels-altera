@@ -340,7 +340,7 @@
             }
             if (!result) return;
             await Promise.all([load(), loadStarters()]);
-            finishCard(result);
+            navigate('/?starter=1');
         }
 
         // ---- optional voice selection after importing a card --------------------------------------------------------
@@ -1474,14 +1474,17 @@
         on('companionDialog', 'cancel', event => { event?.preventDefault?.(); closeWriteCompanion(); });
 
         const loaded = load();
-        loadStarters();
+        const starters = loadStarters();
         if ($('homeInbox')) {
             loadInbox();
             window.addEventListener('focus', () => loadInbox());
             window.setInterval(() => { if (!doc.hidden) loadInbox(); }, 10000);
         }
-        // The first run ends here with "make a pal" as the obvious next step; the sidebar can also ask for "write a companion".
         const params = new URLSearchParams(search());
+        if (params.get('start') === '1') starters.then(() => {
+            const section = $('homeStarters');
+            if (section && !section.hidden) section.focus();
+        });
         const make = params.get('make');
         const incoming = params.get('cardVoice');
         if (incoming && $('cardVoiceDialog')) {

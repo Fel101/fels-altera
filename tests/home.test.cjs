@@ -1029,7 +1029,7 @@ test('starter characters are offered with their pictures, and only Add imports o
     const {doc, byId, fetchImpl, calls} = starterPage((url, method) => {
         if (method !== 'POST') return [200, {starters: offered}];
         offered = offered.filter(starter => !url.endsWith(`/${starter.key}`));
-        return [201, {id: 'ottilie-mere', card_id: 'ottilie-mere', card_voice: {}}];
+        return [201, {id: 'ottilie-mere', card_id: 'ottilie-mere', card_voice: {name: 'Audition'}}];
     });
     const went = [];
     const home = load().start({doc, fetchImpl, navigate: url => went.push(url)});
@@ -1048,7 +1048,7 @@ test('starter characters are offered with their pictures, and only Add imports o
     assert.deepEqual(calls.filter(call => call.method === 'POST').map(call => call.url), ['/api/characters/starters/ottilie-mere']);
     assert.equal(byId.homeStartersList.children.length, 1);
     assert.equal(byId.homeStartersStatus.textContent, 'Ottilie Mere was added.');
-    assert.deepEqual(went, ['/']);
+    assert.deepEqual(went, ['/?starter=1']);
 });
 
 test('a starter that cannot be added says why and stays offered; with none left the section hides', async () => {

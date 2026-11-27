@@ -407,7 +407,7 @@
             }
         }
 
-        const finish = () => save(checking ? '/' : '/home?make=pal');
+        const finish = () => save(checking ? '/' : '/home?start=1#homeStarters');
         const skip = () => save('/home');
 
         async function loaded() {

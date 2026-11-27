@@ -1,6 +1,7 @@
 from hashlib import sha256
 from io import BytesIO
 import json
+import subprocess
 from threading import Event
 from types import SimpleNamespace
 
@@ -83,6 +84,49 @@ def test_failed_setup_keeps_the_active_release_and_undo_keeps_instance_data(tmp_
     windows_install.undo(root)
     assert windows_install.read_installation(root) == {'current': '1.0.0', 'previous': None}
     assert saved.read_text(encoding='utf-8') == 'Keep this conversation.'
+
+
+@pytest.mark.parametrize('upgrade', [False, True])
+def test_optional_failures_leave_core_available_and_can_be_retried(tmp_path, monkeypatch, upgrade):
+    root = tmp_path.resolve()
+    old, new = '1.0.0', '1.0.1'
+    for version in (old, new):
+        python = windows_install.installed_python(windows_install.release_path(root, version), windowless=True)
+        python.parent.mkdir(parents=True)
+        python.touch()
+    if upgrade:
+        monkeypatch.setattr(windows_install.subprocess, 'run', lambda *args, **kwargs: SimpleNamespace(returncode=0))
+        windows_install.finish_install(root, old, root / 'wheels')
+    expected = {'current': new, 'previous': old if upgrade else None}
+    calls = []
+    fail = True
+
+    def run(command, *, timeout, **kwargs):
+        if '--offline' in command:
+            calls.append('core')
+        else:
+            assert windows_install.read_installation(root) == expected
+            calls.append(command[-1] if '--download-model' in command else 'kokoro')
+            if fail and calls[-1] == 'memory':
+                return SimpleNamespace(returncode=1)
+            if fail and calls[-1] == 'kokoro':
+                raise subprocess.TimeoutExpired(command, timeout)
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(windows_install.subprocess, 'run', run)
+    warnings = windows_install.finish_install(root, new, root / 'wheels', models=True, voice=True)
+    assert calls == ['core', 'memory', 'speech', 'kokoro']
+    assert windows_install.read_installation(root) == expected
+    assert len(warnings) == 2
+    assert 'MiniLM memory model could not be installed' in warnings[0]
+    assert 'Kokoro voice timed out' in warnings[1]
+    assert all('Run Setup again' in warning for warning in warnings)
+    assert (root / windows_install.WARNINGS_FILE).is_file()
+    fail = False
+    assert windows_install.finish_install(root, new, root / 'wheels', models=True, voice=True) == []
+    assert windows_install.read_installation(root) == expected
+    assert not (root / windows_install.WARNINGS_FILE).exists()
+    assert not (root / windows_install.NOTICE_FILE).exists()
 
 
 def test_source_copy_checks_on_request_and_refuses_install(monkeypatch):

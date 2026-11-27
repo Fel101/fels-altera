@@ -192,6 +192,22 @@ test('the active download shows file progress and Stop does not switch models', 
     assert.equal(calls.some(call => call.url.endsWith('/switch')), false);
 });
 
+test('the Speech row says how this copy installs the local voice', async () => {
+    for (const [voice, expected] of [
+        [{tts_enabled: false, local_voice_installed: false,
+          install_hint: "Run Altera's Setup again and tick the local Kokoro voice, or use Voice Lab for speech (Settings, Voice)."},
+         /Optional\. Run Altera's Setup again and tick the local Kokoro voice.*Then switch Voice on in Settings\./],
+        [{tts_enabled: false, local_voice_installed: true}, /Optional: switch Voice on in Settings to hear replies\./],
+    ]) {
+        const {doc, byId} = page();
+        const {fetchImpl} = server({voice});
+        const setup = load().start({doc, fetchImpl, navigate() {}, search: () => ''});
+        await setup.loaded;
+        assert.match(text(byId.setupOptional.children[0]), expected);
+        assert.doesNotMatch(text(byId.setupOptional.children[0]), /setup\.bat/);
+    }
+});
+
 test('the optional pieces are listed with what is up, and none of them blocks', async () => {
     const {doc, byId} = page();
     const {fetchImpl} = server({voice: {tts_enabled: false}, forge: {online: true, comfy_online: false, message: ''},

@@ -5,7 +5,9 @@
     const PIECES = [
         {name: 'Speech', url: '/api/voice/status',
             up: data => Boolean(data.tts_enabled), on: () => 'Ready.', off: () => 'Off.',
-            hint: 'Optional: install the local voice with voice\\setup.bat, then switch Voice on in Settings.'},
+            hint: data => data && data.local_voice_installed === false
+                ? `Optional. ${data.install_hint || 'Install the local voice with voice\\setup.bat.'} Then switch Voice on in Settings.`
+                : 'Optional: switch Voice on in Settings to hear replies.'},
         {name: 'NPC Forge', url: '/api/forge/status', link: 'https://github.com/Fel101/fels-npc-forge',
             up: data => Boolean(data.online),
             on: data => [data.comfy_online === true ? 'Running, with ComfyUI.' :
@@ -339,7 +341,7 @@
             line.textContent = data ? ` — ${up ? piece.on(data) : piece.off(data)}` : ' — Unknown right now.';
             const hint = doc.createElement('p');
             hint.className = 'home-muted';
-            hint.textContent = piece.hint;
+            hint.textContent = typeof piece.hint === 'function' ? piece.hint(data) : piece.hint;
             item.append(label, line, hint);
             return item;
         }

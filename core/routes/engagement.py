@@ -166,6 +166,8 @@ def get_voice_status():
         "tts_engine": tts_cfg["engine"],
         "voice_state": speech['state'],
         "voice_message": speech['message'],
+        "local_voice_installed": voice_service.installed(tts_cfg),
+        "install_hint": voice_service.install_hint(),
         "stt_model": stt_model,
         "stt_model_state": stt_model_state
     })

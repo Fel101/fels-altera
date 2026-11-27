@@ -10,8 +10,8 @@ and how well they keep to who they are. First-run setup suggests one from this P
 
 In LM Studio, Gemma 4 12B is [google/gemma-4-12b](https://lmstudio.ai/models/google/gemma-4-12b) in its catalog, and
 LFM3 1.7B downloads from [LiquidAI/LFM3-1.7B-GGUF](https://huggingface.co/LiquidAI/LFM3-1.7B-GGUF) on Hugging Face (choose
-the Q8_0 file). The LFM Open License allows personal use, but commercial use by a company above Liquid AI's threshold is
-not covered, so read it before you use LFM3 for work.
+the Q8_0 file). The LFM Open License allows personal use, and commercial use by a company whose annual revenue is under
+US$10 million; above that, Liquid AI's commercial licence is needed. Read it before you use LFM3 for work.
 
 The suggestions come from the test below. Any model that answers the short test in Setup works; these are the ones that
 did best at the things Altera asks of a model.

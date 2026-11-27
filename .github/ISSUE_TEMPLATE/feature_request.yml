@@ -1,0 +1,32 @@
+name: Feature request
+description: Suggest something Altera could do, or do better.
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: use
+    attributes:
+      label: What do you use Altera for?
+      options:
+        - A companion to talk with
+        - Characters for a story or a game (NPC Forge, Voice Lab)
+        - Practising a language or conversation
+        - A pal for a child (kids mode)
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: What you are trying to do, and what gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like it to do?
+      description: Please use made-up examples rather than your own conversations.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Anything you have tried instead?

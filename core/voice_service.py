@@ -26,6 +26,9 @@ LOGGER = logging.getLogger(__name__)
 START_RETRY_S = 60                      # do not start the service more often than this if it keeps failing
 LOOPBACK = ("127.0.0.1", "localhost", "::1")
 INSTALL_HINT = "Run voice\\setup.bat (Windows) or sh voice/setup.sh to install it."
+# Setup.exe puts the voice in its installation's instance folder when its Kokoro box is ticked; that copy has no setup.bat
+# to run by hand, so its advice is Setup's.
+INSTALLED_HINT = "Run Altera's Setup again and tick the local Kokoro voice, or use Voice Lab for speech (Settings, Voice)."
 
 _lock = threading.Lock()
 _proc = None
@@ -60,6 +63,11 @@ def _launcher(cfg):
     own_python = environment / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     return (Path(k["python"]) if k["python"] else own_python,
             Path(k["script"]) if k["script"] else folder / "serve.py")
+
+
+def install_hint():
+    """How to install the local voice in this copy of Altera: by Setup for one that Setup.exe installed, else by hand."""
+    return INSTALLED_HINT if env.get('INSTALLED_ROOT') else INSTALL_HINT
 
 
 def installed(cfg=None):
@@ -201,7 +209,7 @@ def status(cfg=None, ensure_started=False):
     if ensure_started:
         ensure_started_async(cfg)
     if cfg["kokoro"]["autostart"] and not installed(cfg):
-        return {"state": "down", "message": f"{label} is not installed. {INSTALL_HINT}"}
+        return {"state": "down", "message": f"{label} is not installed. {install_hint()}"}
     return {"state": "down", "message": f"{label} is not running"}
 
 
@@ -221,7 +229,7 @@ def problem(cfg=None):
     data = info(cfg)
     if data is None:
         if not installed(cfg):
-            return f"The local voice is not installed. {INSTALL_HINT}"
+            return f"The local voice is not installed. {install_hint()}"
         return "The local voice service is not running yet. Altera is starting it: try again in a minute."
     if "kokoro" not in (data.get("loaded") or []):
         return "The local voice is still loading. Try again in about 30 seconds."

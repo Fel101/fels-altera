@@ -768,6 +768,14 @@ def test_voice_status_names_the_voice_and_its_state(monkeypatch, tmp_path, alter
     assert data["voice_name"] == "Kokoro af_heart (local)" and data["tts_engine"] == "kokoro" and data["voice_state"] == "warming"
 
 
+def test_an_altera_that_setup_installed_is_told_to_use_setup_for_the_local_voice(monkeypatch):
+    monkeypatch.delenv("ALTERA_INSTALLED_ROOT", raising=False)
+    assert r"voice\setup.bat" in voice_service.install_hint()
+    monkeypatch.setenv("ALTERA_INSTALLED_ROOT", "C:/Synthetic/Altera")
+    hint = voice_service.install_hint()
+    assert hint.startswith("Run Altera's Setup again and tick the local Kokoro voice") and "setup.bat" not in hint
+
+
 def test_the_single_file_route_still_works_for_proactive_messages_and_replay(monkeypatch):
     monkeypatch.setattr(voice_layer, "get_tts_audio", lambda text, voice_name=None, allow_cloud=None: "/static/audio/tts/one.wav")
     client = create_app("engagement").test_client()

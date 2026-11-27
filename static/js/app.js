@@ -208,7 +208,9 @@ function updateVoiceStatus(statusData) {
         statusEl.style.color = 'var(--warning)';
     } else if (statusData.tts_engine === 'kokoro') {
         // Switching on also turns speech on in config.yaml (POST /api/voice/toggle), for the local voice only.
-        statusEl.textContent = 'Off. Switch it on to hear replies in the local voice (install it first with voice\\setup.bat).';
+        statusEl.textContent = statusData.local_voice_installed === false
+            ? `Off. The local voice is not installed yet. ${statusData.install_hint || 'Install it first with voice\\setup.bat.'}`
+            : 'Off. Switch it on to hear replies in the local voice.';
         statusEl.style.color = 'var(--text-muted)';
     } else if (statusData.tts_engine === 'voicelab') {
         statusEl.textContent = 'Voice Lab is selected. Switch Voice on to hear replies.';

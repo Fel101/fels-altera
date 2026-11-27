@@ -16,6 +16,14 @@ FALLBACK = 'Voice Lab is unavailable, so Altera is using its own Kokoro voice.'
 NO_VOICES = 'Voice Lab is running. Get a voice ready there to use it for speech.'
 SPEECH_TIMEOUT_S = 120
 _LICENCES = {'yes': 'Commercial use OK', 'conditions': 'With conditions', 'unclear': 'Unclear', 'no': 'Not cleared'}
+# What Voice Lab says a voice is made from (GET /api/voices `made_from`): a recording (a person's voice, or one it cannot
+# trace to a design), words (designed), or a model's own voice. Voice Lab 1.0.0 and older do not say.
+MADE_FROM = ('recording', 'words', 'model')
+PERSON_VOICE = ("While an optional content level is on, Altera does not speak with a voice cloned from a person's "
+                "recording. Choose a voice designed from words, or one of a model's own voices.")
+UNTRACED_VOICE = ("This Voice Lab does not say whether the voice was cloned from a person's recording, so Altera does not "
+                  "speak with it while an optional content level is on. Update Voice Lab, or choose one of a model's own "
+                  "voices.")
 
 
 class LabError(Exception):
@@ -99,10 +107,23 @@ def catalogue(given=''):
         rating = licence.get('rating')
         reason = licence.get('reason')
         label = _LICENCES.get(rating, 'Unclear') if isinstance(rating, str) else 'Unclear'
-        voices.setdefault(name, {'id': name, 'label': name, 'kind': 'cast' if row.get('kind') == 'cast' else 'preset',
+        kind = 'cast' if row.get('kind') == 'cast' else 'preset'
+        made = row.get('made_from')
+        voices.setdefault(name, {'id': name, 'label': name, 'kind': kind,
                                  'voice_id': row.get('voice_id'), 'identity_id': row.get('identity_id'),
-                                 'model': row.get('model'), 'licence': {'label': label, 'reason': reason[:400] if isinstance(reason, str) else ''}})
+                                 'model': row.get('model'), 'licence': {'label': label, 'reason': reason[:400] if isinstance(reason, str) else ''},
+                                 # A preset is a model's own voice by definition; a Cast voice is only what the Lab says.
+                                 'made_from': 'model' if kind == 'preset' else made if made in MADE_FROM else None})
     return Catalogue(url, library, sorted(voices.values(), key=lambda voice: voice['kind'] != 'cast'), notice, hidden)
+
+
+def refusal(voice):
+    """Why this voice may not speak while voices cloned from a person's recording are kept out, or None: a voice made
+    from a recording, or a Cast voice whose origin the Lab does not report. Any doubt means no."""
+    made = voice.get('made_from')
+    if made in ('words', 'model'):
+        return None
+    return PERSON_VOICE if made == 'recording' else UNTRACED_VOICE
 
 
 def default_voice(voices):

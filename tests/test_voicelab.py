@@ -60,7 +60,7 @@ def lab(monkeypatch, altera_config):
 def test_voice_catalogue_contract_and_selection(lab):
     expected = SPEC['/api/voices']['get']['responses']['200']['content']['application/json']['schema']
     fields = expected['properties']['voices']['items']['properties']
-    assert {'ready', 'name', 'licence', 'kind', 'model'} <= fields.keys()
+    assert {'ready', 'name', 'licence', 'kind', 'model', 'made_from'} <= fields.keys()
     assert {'rating', 'reason'} <= fields['licence']['properties'].keys()
     cfg = tts.settings({'voice': {'tts_engine': 'voicelab'}})
     options = pals.voices(cfg)
@@ -135,6 +135,52 @@ def test_fallback_is_local_only_and_says_which_engine_spoke(lab, altera_config, 
         assert not any(url == 'https://remote.example' for url, _, _ in calls)
     finally:
         tts._reset_state()
+
+
+CLONED = [
+    {'name': 'af_heart', 'kind': 'preset', 'model': 'kokoro', 'ready': True},
+    {'name': 'Rosa', 'kind': 'cast', 'model': 'turbo', 'ready': True, 'made_from': 'recording'},
+    {'name': 'Ash', 'kind': 'cast', 'model': 'turbo', 'ready': True, 'made_from': 'words'},
+    {'name': 'Old', 'kind': 'cast', 'model': 'turbo', 'ready': True},                       # Voice Lab 1.0.0 does not say
+    {'name': 'Odd', 'kind': 'cast', 'model': 'turbo', 'ready': True, 'made_from': 'a mystery'},
+]
+
+
+def test_the_catalogue_keeps_what_the_lab_says_each_voice_is_made_from(lab):
+    _, routes = lab
+    routes[(PORT, '/api/voices')] = {'voices': CLONED}
+    made = {row['id']: row['made_from'] for row in voicelab.catalogue().voices}
+    assert made == {'af_heart': 'model', 'Rosa': 'recording', 'Ash': 'words', 'Old': None, 'Odd': None}
+    assert [name for name, value in made.items() if voicelab.refusal({'made_from': value})] == ['Rosa', 'Old', 'Odd']
+
+
+def test_an_optional_level_never_speaks_with_a_voice_cloned_from_a_recording(lab, altera_config, monkeypatch):
+    from core import adult
+    altera_config.write_text('voice:\n  tts_engine: voicelab\n', encoding='utf-8')
+    calls, routes = lab
+    routes[(PORT, '/api/voices')] = {'voices': CLONED}
+
+    def spoken():
+        voices = [body['voice'] for _, endpoint, body in calls if endpoint == '/v1/audio/speech']
+        calls.clear()
+        return voices
+
+    assert tts.synthesize_long('Hello there.', person_voice='Rosa') and spoken() == ['Rosa']   # with no level on
+    monkeypatch.setattr(adult, 'effective_level', lambda store=None: 'romantic')
+    messages = []
+    with pytest.raises(tts.TTSUnavailable, match="cloned from a person's recording"):
+        tts.synthesize_long('Hello there.', person_voice='Rosa', notice=messages.append)    # not even from the cache
+    with pytest.raises(tts.TTSUnavailable, match='does not say whether'):
+        tts.synthesize_long('Hello there.', person_voice='Old', notice=messages.append)
+    assert messages == [voicelab.PERSON_VOICE, voicelab.UNTRACED_VOICE] and spoken() == []
+    assert tts.synthesize_long('Hello there.', person_voice='Ash') and spoken() == ['Ash']
+    assert tts.synthesize_long('Hello there.', person_voice='af_heart') and spoken() == ['af_heart']
+
+    def broken(store=None):
+        raise RuntimeError('the saved level cannot be read')
+
+    monkeypatch.setattr(adult, 'effective_level', broken)
+    assert tts.person_voices_allowed() is False                                             # any doubt means no
 
 
 def test_bad_speech_is_not_cached_or_sent_elsewhere(lab, altera_config):

@@ -447,6 +447,16 @@ def cloud_allowed(allow_cloud=None):
         return False
 
 
+def person_voices_allowed():
+    """May a reply be spoken with a voice cloned from a person's recording? Not while an optional content level is on,
+    the same rule as Microsoft's cloud voice above: those levels must never involve a real person. Any doubt means no."""
+    try:
+        from core import adult
+        return adult.effective_level() == "off"
+    except Exception:
+        return False
+
+
 def with_person_voice(cfg, person_voice):
     """The settings with this person's own voice (a pal's choice) in place of the configured one. A voice that does not
     belong to the chosen engine is ignored, so changing the engine in Settings never breaks speech."""
@@ -470,6 +480,10 @@ def _lab_clips(chunks, cfg, person_voice, *, preview=False):
     if preview and person_voice not in names:
         raise voicelab.LabError('That voice is no longer ready in Voice Lab. Choose another voice.')
     chosen = next((name for name in (person_voice, lab['voice']) if name in names), voicelab.default_voice(voices))
+    if not person_voices_allowed():
+        refused = voicelab.refusal(next(row for row in voices if row['id'] == chosen))
+        if refused:
+            raise voicelab.LabError(refused)
     paths = []
     for chunk in chunks:
         path = _cache_path('voicelab', chosen, (found.url, found.library), chunk, '.wav')

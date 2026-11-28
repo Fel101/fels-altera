@@ -2,6 +2,24 @@
 
 What changed in each version of Altera, for the people using it. The version is shown at the bottom of Settings.
 
+## 1.0.1 (2026-11-27)
+
+Fixes after 1.0.0, a safer Setup, and an easier first chat.
+
+- **Setup keeps Altera working when a download fails.** The memory and microphone models and the local Kokoro voice are
+  unticked unless you tick them. Altera is installed and ready for text chat before any of them starts; if one fails, Setup
+  names it, Altera still opens, and running Setup again with that download ticked tries it again.
+- **The first chat comes first.** After you connect a chat model, **Finish and choose a starter** takes you to the starter
+  characters. Adding one opens a text chat with them, with a link to check the connection if there is no reply, and after
+  the first reply Altera says where to choose a voice.
+- **No cloned voices at the optional levels.** While an optional content level is on, Altera does not speak with a Voice Lab
+  voice cloned from a person's recording, nor with a Cast voice whose origin Voice Lab does not report (Voice Lab 1.0.0
+  and older). The reply stays as text and says why. Voices designed from words and the models' own voices still speak.
+- An Altera that Setup.exe installed says to run Setup again and tick the local voice, or to use Voice Lab, where it said
+  to run `voice\setup.bat`.
+- Choosing a model names the LFM Open License's limit: free for companies under US$10 million in annual revenue.
+- The issue forms match the other Fel's Studio apps', and questions go to Discussions.
+
 ## 1.0.0 (2026-11-26)
 
 The first release. Altera is a companion app that runs on your own PC. You chat with pals and characters you make,

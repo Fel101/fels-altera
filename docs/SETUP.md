@@ -19,8 +19,8 @@ closes, Setup opens, and Altera reopens after you finish. In the same panel, **U
 version using your existing chats and settings. Save a backup before moving between major versions.
 
 The release supplies `SHA256SUMS` with the installer. To check a downloaded copy, run
-`Get-FileHash -Algorithm SHA256 .\FelsAltera-Setup-1.0.0.exe` and compare the value for that file.
-With GitHub CLI installed, use `gh attestation verify FelsAltera-Setup-1.0.0.exe --repo Fel101/fels-altera` to check its build
+`Get-FileHash -Algorithm SHA256 .\FelsAltera-Setup-1.0.1.exe` and compare the value for that file.
+With GitHub CLI installed, use `gh attestation verify FelsAltera-Setup-1.0.1.exe --repo Fel101/fels-altera` to check its build
 record.
 
 ## Set up from source
